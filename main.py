@@ -13,8 +13,7 @@ import os.path
 import os
 import secret
 
-root_path = __file__
-db = pickledb.load(os.path.join("plaid.db"), auto_dump=True)
+db = pickledb.load(os.path.join(os.path.dirname(os.path.realpath(__file__)), "plaid.db"), auto_dump=True)
 
 configuration = plaid.Configuration(
     host=plaid.Environment.Development,
