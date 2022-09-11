@@ -81,8 +81,8 @@ def create_link_token():
     # Get the client_user_id by searching for the current user
     # Create a link_token for the given user
     request = LinkTokenCreateRequest(
-            products=[Products("auth")],
-            client_name="Plaid Test App",
+            products=[Products("transactions")],
+            client_name="Beancount Automation",
             country_codes=[CountryCode('US')],
             language='en',
             user=LinkTokenCreateRequestUser(
@@ -162,6 +162,7 @@ def sync():
     for owner in owners:
         institutions = typing.cast(dict, metadata_db.get(f"{owner}:institutions"))
         for name in institutions:
+            print(f"syncing {name}")
             access_token, cursor = institutions[name]
             has_more = True
             while has_more:
