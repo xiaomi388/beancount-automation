@@ -119,7 +119,7 @@ def link(owner, institution):
 
     k = f"{owner}:institutions"
     if not metadata_db.exists(k):
-        metadata_db.set(k, [])
+        metadata_db.set(k, {})
     m = typing.cast(dict, metadata_db.get(k))
     m[institution] = (access_token, None)
     metadata_db.set(k, m)
