@@ -1,4 +1,5 @@
 import plaid
+import json
 from plaid.api import plaid_api
 from plaid.model.link_token_create_request import LinkTokenCreateRequest
 from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
@@ -6,14 +7,24 @@ from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchan
 from plaid.model.products import Products
 from plaid.model.country_code import CountryCode
 from plaid.model.transactions_sync_request import TransactionsSyncRequest
+from plaid.model.accounts_get_request import AccountsGetRequest
 import datetime
 import tempfile
 import pickledb
 import os.path
 import os
 import secret
+import click
+import typing
+import jinja2
+import util
+import shutil
+import re
 
-db = pickledb.load(os.path.join(os.path.dirname(os.path.realpath(__file__)), "plaid.db"), auto_dump=True)
+runpath = os.path.dirname(os.path.realpath(__file__))
+plaid_gen_dir = os.path.join(runpath, "plaid_gen") 
+metadata_db = pickledb.load(os.path.join(runpath, "metadata.db"), auto_dump=False)
+txn_db = pickledb.load(os.path.join(runpath, "transaction.db"), auto_dump=False)
 
 configuration = plaid.Configuration(
     host=plaid.Environment.Development,
@@ -24,7 +35,6 @@ configuration = plaid.Configuration(
 )
 api_client = plaid.ApiClient(configuration)
 client = plaid_api.PlaidApi(api_client)
-
 
 def generate_auth_page(link_token):
     page = """<html>
@@ -88,41 +98,155 @@ def exchange_public_token(public_token):
       public_token=public_token
     )
     response = client.item_public_token_exchange(request)
-    print(response)
     access_token = response['access_token']
     return access_token
 
-def link():
+@click.command()
+@click.option("--owner", help="owner of the account", required=True)
+@click.option("--institution", help="name of the account institution", required=True)
+def link(owner, institution):
     link_token = create_link_token()
     generate_auth_page(link_token)
     public_token = input("input public token:")
     access_token = exchange_public_token(public_token)
-    db.set("access_token", access_token)
-    print(access_token)
 
-def get_transactions():
-    access_token = db.get("access_token")
-    cursor = db.get("next_cursor")
-    if cursor == False:
-        cursor = None
+    k = "owners"
+    if not metadata_db.exists(k):
+        metadata_db.set(k, list())
+    s = set(typing.cast(list, metadata_db.get(k)))
+    s.add(owner)
+    metadata_db.set(k, list(s))
 
-    has_more = True
-    while has_more:
-      request = TransactionsSyncRequest(
-        access_token=access_token,
-      )
-      response = client.transactions_sync(request)
-      #TODO: keep fetching transactions and store them into db
-      print(response)
-      break
+    k = f"{owner}:institutions"
+    if not metadata_db.exists(k):
+        metadata_db.set(k, [])
+    m = typing.cast(dict, metadata_db.get(k))
+    m[institution] = (access_token, None)
+    metadata_db.set(k, m)
 
-def main():
-    if not db.exists("access_token"):
-        link()
-    else:
-        get_transactions()
+    metadata_db.dump()
+
+def get_account(account_id):
+    if not get_account.accounts:
+        owners = typing.cast(list, metadata_db.get("owners"))
+        if not owners:
+            return
+        for owner in owners:
+            institutions = typing.cast(dict, metadata_db.get(f"{owner}:institutions"))
+            for name in institutions:
+                access_token, _ = institutions[name]
+                req = AccountsGetRequest(access_token=access_token)
+                resp = client.accounts_get(req)
+                get_account.accounts += resp["accounts"]
+
+    for account in get_account.accounts:
+        if account["account_id"] == account_id: 
+           account = json.loads(json.dumps(account.to_dict(), default=str))
+           account = {k: account[k] for k in ("name", "type")} 
+           return account
+    raise Exception(f"account {account_id} not found")
+get_account.accounts = []
+
+
+@click.command()
+def sync():
+    owners = typing.cast(list, metadata_db.get("owners"))
+    if not owners:
+        return
+
+    k = "transactions"
+    if not txn_db.exists(k):
+        txn_db.set("transactions", dict())
+    txns = typing.cast(dict, txn_db.get("transactions"))
+
+    for owner in owners:
+        institutions = typing.cast(dict, metadata_db.get(f"{owner}:institutions"))
+        for name in institutions:
+            access_token, cursor = institutions[name]
+            has_more = True
+            while has_more:
+                req = TransactionsSyncRequest(
+                  access_token=access_token,
+                  cursor=cursor if cursor else "",
+                )
+                resp = client.transactions_sync(req)
+                for txn in resp["added"] + resp["modified"]:
+                    txn = json.loads(json.dumps(txn.to_dict(), default=str))
+                    txn["owner"] = owner
+                    txn["account"] = get_account(txn["account_id"])
+                    txn["institution"] = name
+                    txns[txn["transaction_id"]] = txn
+                for id in resp["removed"]:
+                    txns.pop(id)
+                has_more = resp["has_more"]
+                cursor = resp["next_cursor"]
+
+                txn_db.set("transactions", txns)
+                txn_db.dump()
+                institutions[name][1] = cursor
+                metadata_db.set(f"{owner}:institutions", institutions)
+                metadata_db.dump()
+
+def _dump():
+    os.mkdir(plaid_gen_dir)
+    txn_file_path = os.path.join(plaid_gen_dir, "transaction.beancount")
+    main_file_path = os.path.join(plaid_gen_dir, "main.beancount")
+    bean_accounts = set()
+
+    txns = typing.cast(dict, txn_db.get("transactions"))
+    args = []
+    for txn in txns.values():
+        from_account = util.gen_from_account(txn)
+        to_account = util.gen_to_account(txn)
+        bean_accounts.update([from_account, to_account])
+        args.append({
+            "institution": txn["institution"],
+            "date": txn["date"],
+            "desc": f'"{re.sub(r"[^a-zA-Z ]", "", txn["name"])}"',
+            "from_account":util.gen_from_account(txn),
+            "to_account":util.gen_to_account(txn),
+            "amount":txn["amount"],
+            "unit":txn["iso_currency_code"],
+        })
+    args = util.merge_transfer(args)
+
+    with open(txn_file_path, "w") as f: 
+        tpl = jinja2.Environment(loader=jinja2.FileSystemLoader(os.path.join(runpath, "templates"))).get_template("transaction.tpl")
+        for arg in args:
+            output = tpl.render(**arg)
+            f.write(output) 
+
+    with open(main_file_path, "w") as f:
+        f.write('include "transaction.beancount"\n\n')
+        for account in bean_accounts:
+            f.write(f"2000-01-01 open {account}\n")
+
+
+@click.command()
+def dump():
+    backup_dir = None
+    if os.path.exists(plaid_gen_dir):
+        backup_dir = plaid_gen_dir + ".bak"
+        os.rename(plaid_gen_dir, backup_dir)
+    try:
+        _dump()
+    except Exception as e:
+        shutil.rmtree(plaid_gen_dir)
+        if backup_dir:
+            os.rename(backup_dir, plaid_gen_dir)
+        raise
+    if backup_dir:
+        shutil.rmtree(backup_dir)
+
+@click.group()
+def cli():
+    pass
+
 
 if __name__ == "__main__":
-    main()
+    cli.add_command(link)
+    cli.add_command(sync)
+    cli.add_command(dump)
+    cli()
 
 
