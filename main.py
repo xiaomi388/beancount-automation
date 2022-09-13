@@ -55,7 +55,7 @@ def sync():
     for owner in owners:
         institutions = typing.cast(dict, db.meta.get(f"{owner}:institutions"))
         for name in institutions:
-            print(f"syncing {name}")
+            print(f"syncing {owner}:{name}")
             access_token, cursor = institutions[name]
             has_more = True
             while has_more:
@@ -70,8 +70,8 @@ def sync():
                     txn["account"] = plaid_util.get_account(txn["account_id"])
                     txn["institution"] = name
                     txns[txn["transaction_id"]] = txn
-                for id in resp["removed"]:
-                    txns.pop(id)
+                for txn in resp["removed"]:
+                    txns.pop(txn["transaction_id"])
                 has_more = resp["has_more"]
                 cursor = resp["next_cursor"]
 
