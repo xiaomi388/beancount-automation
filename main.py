@@ -105,7 +105,7 @@ def _dump():
             "to_account":util.gen_to_account(txn),
             "amount":txn["amount"],
             "unit":txn["iso_currency_code"],
-            "tag": "",
+            "tags": [f"owner-{txn['owner']}"],
         })
 
     for hook in post_gen_args_hooks:
