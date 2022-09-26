@@ -130,7 +130,7 @@ func Dump() error {
 			ToAccount:   *ta,
 			Unit:        txn.Transaction.GetIsoCurrencyCode(),
 			Amount:      float32(math.Abs(float64(txn.Transaction.Amount))),
-			Tags:        []string{"owner-" + txn.Owner},
+			Tags:        []string{"payer-" + txn.Owner},
 		})
 	}
 
