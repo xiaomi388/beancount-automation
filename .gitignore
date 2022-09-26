@@ -1,3 +1,4 @@
-secret.py
-plaid.db
-venv/
+__pycache__/
+config.yaml
+*.beancount
+*.db
