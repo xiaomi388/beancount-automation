@@ -124,8 +124,8 @@ func Dump() error {
 		}
 		bcTxns = append(bcTxns, BeancountTransaction{
 			Date:        txn.Transaction.Date,
-			Payee:       string(re.ReplaceAll([]byte(txn.Transaction.GetMerchantName()), nil)),
-			Desc:        string(re.ReplaceAll([]byte(txn.Transaction.GetName()), nil)),
+			Payee:       string(re.ReplaceAll([]byte(txn.Transaction.GetName()), nil)),
+			Desc:        txn.Transaction.GetTransactionId(),
 			FromAccount: *fa,
 			ToAccount:   *ta,
 			Unit:        txn.Transaction.GetIsoCurrencyCode(),
