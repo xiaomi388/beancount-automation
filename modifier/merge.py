@@ -21,14 +21,19 @@ for i in range(len(txns)):
             continue
 
         new_txn = {}
+        payer = bc_txns[i]["from_account"]["owner"]
+        payee = bc_txns[q]["to_account"]["owner"]
         new_bc_txn = {
             "date": max(bc_txns[i]["date"], bc_txns[q]["date"]),
-            "payee": bc_txns[q]["to_account"]["owner"],
-            "desc": "",
+            "payee": payee,
+            "desc": f"transfer {payer} -> {payee}",
             "from_account": bc_txns[i]["from_account"],
             "to_account": bc_txns[q]["to_account"],
             "unit": bc_txns[i]["unit"],
-            "tags": [f'payer-{bc_txns[i]["from_account"]["owner"]}'],
+            "metadata": {
+                "payer": payer,
+            },
+            "tags": [],
             "amount": bc_txns[i]["amount"]
         }
 

@@ -2,6 +2,9 @@ package dump
 
 const transactionTemplate = `
 {{ .Date }} * "{{ .Payee }}" "{{ .Desc }}" {{ range $tag := .Tags }}#{{ $tag }}{{ end }}
+    {{ range $k, $v := .Metadata -}}
+    {{ $k }}:"{{ $v }}"
+    {{ end -}}
     {{ .ToAccount.ToString }} {{ .Amount }} {{ .Unit }}
     {{ .FromAccount.ToString }}
 `

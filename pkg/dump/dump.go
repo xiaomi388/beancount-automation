@@ -47,14 +47,15 @@ func (ca ChangeAccount) ToString() string {
 }
 
 type BeancountTransaction struct {
-	Date        string   `json:"date"`
-	Payee       string   `json:"payee"`
-	Desc        string   `json:"desc"`
-	Tags        []string `json:"tags"`
-	ToAccount   Account  `json:"to_account"`
-	FromAccount Account  `json:"from_account"`
-	Amount      float32  `json:"amount"`
-	Unit        string   `json:"unit"`
+	Date        string            `json:"date"`
+	Payee       string            `json:"payee"`
+	Desc        string            `json:"desc"`
+	Tags        []string          `json:"tags"`
+	Metadata    map[string]string `json:"metadata"`
+	ToAccount   Account           `json:"to_account"`
+	FromAccount Account           `json:"from_account"`
+	Amount      float32           `json:"amount"`
+	Unit        string            `json:"unit"`
 }
 
 func txnToChangeAccount(txn transaction.Transaction) Account {
@@ -99,10 +100,10 @@ func Dump() error {
 		return fmt.Errorf("failed to load transaction from db: %w", err)
 	}
 
-    var txns []transaction.Transaction
-    for _, txn := range txnsMap {
-        txns = append(txns, txn)
-    }
+	var txns []transaction.Transaction
+	for _, txn := range txnsMap {
+		txns = append(txns, txn)
+	}
 
 	var buf bytes.Buffer
 	w := io.Writer(&buf)
@@ -122,22 +123,29 @@ func Dump() error {
 			fa = &ca
 			ta = &ba
 		}
-		bcTxns = append(bcTxns, BeancountTransaction{
+        bcTxn := BeancountTransaction{
 			Date:        txn.Transaction.Date,
-			Payee:       string(re.ReplaceAll([]byte(txn.Transaction.GetName()), nil)),
-			Desc:        txn.Transaction.GetTransactionId(),
+			Payee:       string(re.ReplaceAll([]byte(txn.Transaction.GetMerchantName()), nil)),
+			Desc:       string(re.ReplaceAll([]byte(txn.Transaction.GetName()), nil)),
 			FromAccount: *fa,
 			ToAccount:   *ta,
-			Unit:        txn.Transaction.GetIsoCurrencyCode(),
-			Amount:      float32(math.Abs(float64(txn.Transaction.Amount))),
-			Tags:        []string{"payer-" + txn.Owner},
-		})
+			Metadata: map[string]string{
+				"id":    txn.Transaction.GetTransactionId(),
+			},
+			Tags:   []string{},
+			Unit:   txn.Transaction.GetIsoCurrencyCode(),
+			Amount: float32(math.Abs(float64(txn.Transaction.Amount))),
+		}
+        if txn.Transaction.Amount > 0 {
+            bcTxn.Metadata["payer"] = txn.Owner
+        }
+		bcTxns = append(bcTxns, bcTxn)
 	}
 
-    bcTxns, err = modify(txns, bcTxns)
-    if err != nil {
-        return fmt.Errorf("failed to modify transactions: %w", err)
-    }
+	bcTxns, err = modify(txns, bcTxns)
+	if err != nil {
+		return fmt.Errorf("failed to modify transactions: %w", err)
+	}
 
 	accounts := map[string]Account{}
 	for _, bcTxn := range bcTxns {
