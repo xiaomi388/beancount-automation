@@ -82,7 +82,7 @@ func Link(owner string, institution string) error {
 
 	ctx := context.Background()
 
-	c := plaidclient.New(cfg.ClientID, cfg.Secret)
+	c := plaidclient.New(cfg.ClientID, cfg.Secret, cfg.Environment)
 	linkToken, err := createLinkToken(ctx, c)
 	if err != nil {
 		return fmt.Errorf("failed to create link token: %w", err)

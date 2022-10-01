@@ -6,11 +6,11 @@ package cmd
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
+	"github.com/xiaomi388/beancount-automation/pkg/config"
 )
-
-
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -41,11 +41,13 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.beancountautomation.yaml)")
+	p, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+	rootCmd.PersistentFlags().StringVar(&config.ConfigPath, "config", filepath.Join(p, "config.yaml"), "config file (default is config.yaml)")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
-
-

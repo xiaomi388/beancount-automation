@@ -40,12 +40,12 @@ func Sync() error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	txns, err := transaction.Load(transaction.DBPath)
+	txns, err := transaction.Load(cfg.TransactionDBPath)
     if err != nil {
         return fmt.Errorf("failed to load transactions from db: %w", err)
     }
 
-	cli := plaidclient.New(cfg.ClientID, cfg.Secret)
+	cli := plaidclient.New(cfg.ClientID, cfg.Secret, cfg.Environment)
 
     accounts, err := getAllAccounts(ctx, cli, cfg)
     if err != nil {
@@ -84,7 +84,7 @@ func Sync() error {
                 hasMore = resp.GetHasMore()
 
                 // Dump transaction
-                if err := transaction.Dump(transaction.DBPath, txns); err != nil {
+                if err := transaction.Dump(cfg.TransactionDBPath, txns); err != nil {
                     return fmt.Errorf("failed to dump transactions: %w", err)
                 }
 
@@ -99,5 +99,6 @@ func Sync() error {
         }
 	}
 
+    fmt.Printf("Successfully synced all transactions to %q.\n", cfg.TransactionDBPath)
 	return nil
 }

@@ -12,20 +12,14 @@ import (
 )
 
 var (
-    owner *string
-    institution *string
+	owner       *string
+	institution *string
 )
 
 // linkCmd represents the link command
 var linkCmd = &cobra.Command{
 	Use:   "link",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "link an institution",
 	Run: func(_ *cobra.Command, _ []string) {
 		err := link.Link(*owner, *institution)
 		if err != nil {
@@ -38,11 +32,11 @@ func init() {
 	rootCmd.AddCommand(linkCmd)
 
 	// Here you will define your flags and configuration settings.
-    owner = linkCmd.PersistentFlags().String("owner", "", "")
-    linkCmd.MarkPersistentFlagRequired("owner")
+	owner = linkCmd.PersistentFlags().String("owner", "", "")
+	linkCmd.MarkPersistentFlagRequired("owner")
 
-    institution = linkCmd.PersistentFlags().String("institution", "", "")
-    linkCmd.MarkPersistentFlagRequired("institution")
+	institution = linkCmd.PersistentFlags().String("institution", "", "")
+	linkCmd.MarkPersistentFlagRequired("institution")
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:

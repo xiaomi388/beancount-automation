@@ -11,11 +11,9 @@ import (
 	"text/template"
 
 	"github.com/plaid/plaid-go/plaid"
+	"github.com/xiaomi388/beancount-automation/pkg/config"
 	"github.com/xiaomi388/beancount-automation/pkg/transaction"
 )
-
-// TODO: make gen folder configurable
-const genPath = "./plaid_gen.beancount"
 
 type Account struct {
 	Type             string   `json:"type"`
@@ -95,7 +93,13 @@ func txnToBalanceAccount(txn transaction.Transaction) Account {
 }
 
 func Dump() error {
-	txnsMap, err := transaction.Load(transaction.DBPath)
+	cfg, err := config.Load(config.ConfigPath)
+	if err != nil {
+		return fmt.Errorf("failed to load config file: %w", err)
+
+	}
+
+	txnsMap, err := transaction.Load(cfg.TransactionDBPath)
 	if err != nil {
 		return fmt.Errorf("failed to load transaction from db: %w", err)
 	}
@@ -123,22 +127,22 @@ func Dump() error {
 			fa = &ca
 			ta = &ba
 		}
-        bcTxn := BeancountTransaction{
+		bcTxn := BeancountTransaction{
 			Date:        txn.Transaction.Date,
 			Payee:       string(re.ReplaceAll([]byte(txn.Transaction.GetMerchantName()), nil)),
-			Desc:       string(re.ReplaceAll([]byte(txn.Transaction.GetName()), nil)),
+			Desc:        string(re.ReplaceAll([]byte(txn.Transaction.GetName()), nil)),
 			FromAccount: *fa,
 			ToAccount:   *ta,
 			Metadata: map[string]string{
-				"id":    txn.Transaction.GetTransactionId(),
+				"id": txn.Transaction.GetTransactionId(),
 			},
 			Tags:   []string{},
 			Unit:   txn.Transaction.GetIsoCurrencyCode(),
 			Amount: float32(math.Abs(float64(txn.Transaction.Amount))),
 		}
-        if txn.Transaction.Amount > 0 {
-            bcTxn.Metadata["payer"] = txn.Owner
-        }
+		if txn.Transaction.Amount > 0 {
+			bcTxn.Metadata["payer"] = txn.Owner
+		}
 		bcTxns = append(bcTxns, bcTxn)
 	}
 
@@ -160,6 +164,8 @@ func Dump() error {
 		return fmt.Errorf("failed to generate open balance account: %w", err)
 	}
 
-	os.WriteFile(genPath, buf.Bytes(), 0644)
+	os.WriteFile(cfg.DumpPath, buf.Bytes(), 0644)
+
+    fmt.Printf("Successfully generated beancount file: %q.\n", cfg.DumpPath)
 	return nil
 }
