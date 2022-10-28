@@ -46,7 +46,6 @@ func modify(txns []transaction.Transaction, bcTxns []BeancountTransaction) ([]Be
         return nil
 	}); err != nil {
 		return nil, fmt.Errorf("failed to walk file: %w", err)
-
 	}
 
 	var msg Message
