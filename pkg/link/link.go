@@ -14,7 +14,7 @@ import (
 	"github.com/xiaomi388/beancount-automation/pkg/plaidclient"
 )
 
-func createLinkToken(ctx context.Context, c *plaid.APIClient) (string, error) {
+func createLinkToken(ctx context.Context, c *plaid.APIClient, pd plaid.Products) (string, error) {
 	user := plaid.LinkTokenCreateRequestUser{
 		ClientUserId: "USERID",
 	}
@@ -24,7 +24,8 @@ func createLinkToken(ctx context.Context, c *plaid.APIClient) (string, error) {
 		[]plaid.CountryCode{plaid.COUNTRYCODE_US},
 		user,
 	)
-	request.SetProducts([]plaid.Products{plaid.PRODUCTS_TRANSACTIONS})
+
+	request.SetProducts([]plaid.Products{pd})
 	resp, _, err := c.PlaidApi.LinkTokenCreate(ctx).LinkTokenCreateRequest(*request).Execute()
 	if err != nil {
 		return "", err
@@ -58,7 +59,7 @@ func generateAuthPage(linkToken string) error {
 	return nil
 }
 
-func readAccessToken() (string, error) {
+func readPublicToken() (string, error) {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Print("Enter access token: ")
 	text, err := reader.ReadString('\n')
@@ -70,7 +71,19 @@ func readAccessToken() (string, error) {
 	return text, nil
 }
 
-func Link(owner string, institution string) error {
+func exchangeAccessToken(ctx context.Context, c *plaid.APIClient, publicToken string) (string, error) {
+    exchangePublicTokenReq := plaid.NewItemPublicTokenExchangeRequest(publicToken)
+    exchangePublicTokenResp, _, err := c.PlaidApi.ItemPublicTokenExchange(ctx).ItemPublicTokenExchangeRequest( *exchangePublicTokenReq,
+    ).Execute()
+
+    if err != nil {
+        return "", fmt.Errorf("failed to get access token: %w", err)
+    }
+
+    return exchangePublicTokenResp.GetAccessToken(), nil
+}
+
+func Link(owner string, institution string, accountType plaid.Products) error {
 	cfg, err := config.Load(config.ConfigPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config file: %w", err)
@@ -83,25 +96,29 @@ func Link(owner string, institution string) error {
 	ctx := context.Background()
 
 	c := plaidclient.New(cfg.ClientID, cfg.Secret, cfg.Environment)
-	linkToken, err := createLinkToken(ctx, c)
+	linkToken, err := createLinkToken(ctx, c, accountType)
 	if err != nil {
 		return fmt.Errorf("failed to create link token: %w", err)
-
 	}
 
 	if err := generateAuthPage(linkToken); err != nil {
 		return fmt.Errorf("failed to generate auth page: %w", err)
 	}
 
-	accessToken, err := readAccessToken()
-	fmt.Println(accessToken)
+	publicToken, err := readPublicToken()
 	if err != nil {
-		return fmt.Errorf("failed to read access token: %w", err)
+		return fmt.Errorf("failed to read public token: %w", err)
+	}
+
+    accessToken, err := exchangeAccessToken(ctx, c, publicToken)
+	if err != nil {
+		return fmt.Errorf("failed to get access token: %w", err)
 	}
 
 	cfg.SetInstitution(config.Institution{
 		Name:        institution,
 		AccessToken: accessToken,
+		Type:        accountType,
 	}, owner)
 
 	config.Dump(config.ConfigPath, cfg)

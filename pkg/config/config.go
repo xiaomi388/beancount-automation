@@ -4,15 +4,17 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/plaid/plaid-go/plaid"
 	"gopkg.in/yaml.v3"
 )
 
 var ConfigPath string
 
 type Institution struct {
-	Name        string `yaml:"name"`
-	AccessToken string `yaml:"accessToken"`
-	Cursor      string `yaml:"cursor"`
+	Name        string         `yaml:"name"`
+	AccessToken string         `yaml:"accessToken"`
+	Cursor      string         `yaml:"cursor"`
+	Type        plaid.Products `yaml:"type"`
 }
 
 type Owner struct {
@@ -21,12 +23,13 @@ type Owner struct {
 }
 
 type Config struct {
-	ClientID string  `yaml:"clientID"`
-	Secret   string  `yaml:"secret"`
-    Environment string `yaml:"environment"`
-    TransactionDBPath string `yaml:"transactionDBPath"`
-    DumpPath string `yaml:"dumpPath"`
-	Owners   []Owner `yaml:"owners"`
+	ClientID          string  `yaml:"clientID"`
+	Secret            string  `yaml:"secret"`
+	Environment       string  `yaml:"environment"`
+	TransactionDBPath string  `yaml:"transactionDBPath"`
+	HoldingDBPath     string  `yaml:"holdingDBPath"`
+	DumpPath          string  `yaml:"dumpPath"`
+	Owners            []Owner `yaml:"owners"`
 }
 
 func (c *Config) Owner(name string) (Owner, bool) {

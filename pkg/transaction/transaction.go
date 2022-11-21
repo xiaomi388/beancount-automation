@@ -15,7 +15,7 @@ type Transaction struct {
 	Institution string            `json:"institution"`
 }
 
-func New(txn plaid.Transaction, owner string, institution string, account plaid.AccountBase) Transaction {
+func NewTransaction(txn plaid.Transaction, owner string, institution string, account plaid.AccountBase) Transaction {
 	return Transaction{
 		Transaction: txn,
 		Account:     account,

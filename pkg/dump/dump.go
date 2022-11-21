@@ -12,6 +12,7 @@ import (
 
 	"github.com/plaid/plaid-go/plaid"
 	"github.com/xiaomi388/beancount-automation/pkg/config"
+	"github.com/xiaomi388/beancount-automation/pkg/holding"
 	"github.com/xiaomi388/beancount-automation/pkg/transaction"
 )
 
@@ -92,13 +93,7 @@ func txnToBalanceAccount(txn transaction.Transaction) Account {
 	}
 }
 
-func Dump() error {
-	cfg, err := config.Load(config.ConfigPath)
-	if err != nil {
-		return fmt.Errorf("failed to load config file: %w", err)
-
-	}
-
+func dumpTransactions(cfg *config.Config, w io.Writer) error {
 	txnsMap, err := transaction.Load(cfg.TransactionDBPath)
 	if err != nil {
 		return fmt.Errorf("failed to load transaction from db: %w", err)
@@ -108,9 +103,6 @@ func Dump() error {
 	for _, txn := range txnsMap {
 		txns = append(txns, txn)
 	}
-
-	var buf bytes.Buffer
-	w := io.Writer(&buf)
 
 	var bcTxns []BeancountTransaction
 	for _, txn := range txns {
@@ -164,8 +156,51 @@ func Dump() error {
 		return fmt.Errorf("failed to generate open balance account: %w", err)
 	}
 
-	os.WriteFile(cfg.DumpPath, buf.Bytes(), 0644)
+	return nil
+}
 
-    fmt.Printf("Successfully generated beancount file: %q.\n", cfg.DumpPath)
+func dumpHoldings(cfg *config.Config, w io.Writer) error {
+	holdings, err := holding.Load(cfg.HoldingDBPath)
+	if err != nil {
+		return fmt.Errorf("failed to load holdings from %q: %w", cfg.HoldingDBPath, err)
+	}
+
+	for _, holding := range holdings {
+        if holding.Holding.InstitutionPriceAsOf.Get() == nil {
+            continue
+        }
+
+        if err := template.Must(template.New("holding").Funcs(template.FuncMap{
+            "Deref": func(s *string) string { return *s },
+            "Replace": func(s string) string { return string(regexp.MustCompile(`[^a-zA-Z0-9]`).ReplaceAll([]byte(s), nil)) },
+        }).Parse(holdingTemplate)).Execute(w, holding); err != nil {
+            return fmt.Errorf("failed to generate holding for %#v: %w", holding, err)
+        }
+
+	}
+
+    return nil
+}
+
+func Dump() error {
+	cfg, err := config.Load(config.ConfigPath)
+	if err != nil {
+		return fmt.Errorf("failed to load config file: %w", err)
+	}
+
+	var buf bytes.Buffer
+	w := io.Writer(&buf)
+
+    if err := dumpTransactions(cfg, w); err != nil {
+        return fmt.Errorf("failed to dump transactions: %w", err)
+
+    }
+
+    if err := dumpHoldings(cfg, w); err != nil {
+        return fmt.Errorf("failed to dump holdings: %w", err)
+    }
+
+	os.WriteFile(cfg.DumpPath, buf.Bytes(), 0644)
+	fmt.Printf("Successfully generated beancount file: %q.\n", cfg.DumpPath)
 	return nil
 }
