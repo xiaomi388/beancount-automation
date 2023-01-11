@@ -6,7 +6,7 @@
 
 ## How to Run
 
-###### link a new account
+### link a new account
 
 ```
 go run main.go link --owner <OwnerName> --institution <InstitutionName> --type <AccountType>
@@ -18,7 +18,7 @@ For credit/debit account, type should be `transactions`. For investment account 
 
 Note: only plaid production account can be able to use `investments` type.
 
-###### sync data from plaid
+### sync data from plaid
 
 Then, run this command to download all transaction data from Plaid:
 
@@ -26,7 +26,7 @@ Then, run this command to download all transaction data from Plaid:
 go run main.go sync
 ```
 
-###### convert to beancount format
+### convert to beancount format
 
 Finally, run this command to convert the plaid transactions to beancount format, and run fava:
 
