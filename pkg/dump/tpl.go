@@ -16,11 +16,12 @@ const openAccountTemplate = `
 `
 
 //{{ $account := Assets:{{ .Owner }}:{{ Deref .Holding.IsoCurrencyCode.Get }}:{{ .Institution }}:{{ Replace (Deref .Security.Name.Get) }} -}}
+//{{ Deref .Holding.InstitutionPriceAsOf.Get }} *
 
 const holdingTemplate = `
 2000-01-01 open Assets:{{ .Owner }}:{{ Deref .Holding.IsoCurrencyCode.Get }}:{{ .Institution }}:{{ Replace (Deref .Security.Name.Get) }}
 
-{{ Deref .Holding.InstitutionPriceAsOf.Get }} *
+2000-01-01 *
     Assets:{{ .Owner }}:{{ Deref .Holding.IsoCurrencyCode.Get }}:{{ .Institution }}:{{ Replace (Deref .Security.Name.Get) }} {{ .Holding.InstitutionValue }} {{ Deref .Holding.IsoCurrencyCode.Get }}
     Equity:OpenBalance
 `

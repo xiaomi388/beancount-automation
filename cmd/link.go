@@ -24,10 +24,10 @@ var linkCmd = &cobra.Command{
 	Use:   "link",
 	Short: "link an institution",
 	Run: func(_ *cobra.Command, _ []string) {
-        if *accountType != string(plaid.PRODUCTS_INVESTMENTS) && *accountType != string(plaid.PRODUCTS_TRANSACTIONS) {
-            fmt.Println("account type should be either investments or transactions")
-            os.Exit(1)
-        }
+		if *accountType != string(plaid.PRODUCTS_INVESTMENTS) && *accountType != string(plaid.PRODUCTS_TRANSACTIONS) {
+			fmt.Println("account type should be either investments or transactions")
+			os.Exit(1)
+		}
 
 		err := link.Link(*owner, *institution, plaid.Products(*accountType))
 		if err != nil {
