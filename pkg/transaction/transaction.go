@@ -43,7 +43,7 @@ func Load(dbPath string) (map[string]Transaction, error) {
 }
 
 func Dump(dbPath string, txns map[string]Transaction) error {
-	data, err := json.Marshal(txns)
+	data, err := json.MarshalIndent(txns, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal txns: %w", err)
 	}

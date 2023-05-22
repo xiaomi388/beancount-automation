@@ -45,7 +45,7 @@ func Load(dbPath string) ([]Holding, error) {
 }
 
 func Dump(dbPath string, holdings []Holding) error {
-	data, err := json.Marshal(holdings)
+	data, err := json.MarshalIndent(holdings, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal holdings: %w", err)
 	}
