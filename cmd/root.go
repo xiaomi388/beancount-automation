@@ -1,6 +1,5 @@
 /*
 Copyright © 2022 NAME HERE <EMAIL ADDRESS>
-
 */
 package cmd
 
@@ -8,7 +7,12 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/xiaomi388/beancount-automation/cmd/dump"
+	"github.com/xiaomi388/beancount-automation/cmd/link"
+	"github.com/xiaomi388/beancount-automation/cmd/sync"
+	"github.com/xiaomi388/beancount-automation/cmd/relink"
 	"github.com/xiaomi388/beancount-automation/pkg/config"
 )
 
@@ -50,4 +54,11 @@ func init() {
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	logrus.SetLevel(logrus.DebugLevel)
+
+	rootCmd.AddCommand(dump.DumpCmd)
+	rootCmd.AddCommand(sync.SyncCmd)
+	rootCmd.AddCommand(link.LinkCmd)
+	rootCmd.AddCommand(relink.RelinkCmd)
+
 }

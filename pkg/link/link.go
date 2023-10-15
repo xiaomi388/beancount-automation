@@ -1,87 +1,13 @@
 package link
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"os"
-	"os/exec"
-	"strings"
-	"text/template"
 
 	"github.com/plaid/plaid-go/plaid"
 	"github.com/xiaomi388/beancount-automation/pkg/config"
 	"github.com/xiaomi388/beancount-automation/pkg/plaidclient"
 )
-
-func createLinkToken(ctx context.Context, c *plaid.APIClient, pd plaid.Products) (string, error) {
-	user := plaid.LinkTokenCreateRequestUser{
-		ClientUserId: "USERID",
-	}
-	request := plaid.NewLinkTokenCreateRequest(
-		"Beancount Automation",
-		"en",
-		[]plaid.CountryCode{plaid.COUNTRYCODE_US},
-		user,
-	)
-
-	request.SetProducts([]plaid.Products{pd})
-	resp, _, err := c.PlaidApi.LinkTokenCreate(ctx).LinkTokenCreateRequest(*request).Execute()
-	if err != nil {
-		return "", err
-	}
-
-	linkToken := resp.GetLinkToken()
-	return linkToken, nil
-}
-
-func generateAuthPage(linkToken string) error {
-	tmpl, err := template.New("link.yaml").Parse(linkHTML)
-	if err != nil {
-		return fmt.Errorf("failed to generate template: %w", err)
-	}
-
-	tmpFile, err := os.CreateTemp("", "*.html")
-	if err != nil {
-		return fmt.Errorf("failed to create tmp file: %w", err)
-
-	}
-
-	data := struct{ LinkToken string }{linkToken}
-	if err := tmpl.Execute(tmpFile, data); err != nil {
-		return fmt.Errorf("failed to execute template: %w", err)
-	}
-
-	if err := exec.Command("open", tmpFile.Name()).Run(); err != nil {
-		return fmt.Errorf("failed to open generated auth page: %w", err)
-	}
-
-	return nil
-}
-
-func readPublicToken() (string, error) {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Enter access token: ")
-	text, err := reader.ReadString('\n')
-	text = strings.ReplaceAll(text, "\n", "")
-	if err != nil {
-		return "", err
-	}
-
-	return text, nil
-}
-
-func exchangeAccessToken(ctx context.Context, c *plaid.APIClient, publicToken string) (string, error) {
-    exchangePublicTokenReq := plaid.NewItemPublicTokenExchangeRequest(publicToken)
-    exchangePublicTokenResp, _, err := c.PlaidApi.ItemPublicTokenExchange(ctx).ItemPublicTokenExchangeRequest( *exchangePublicTokenReq,
-    ).Execute()
-
-    if err != nil {
-        return "", fmt.Errorf("failed to get access token: %w", err)
-    }
-
-    return exchangePublicTokenResp.GetAccessToken(), nil
-}
 
 func Link(owner string, institution string, accountType plaid.Products) error {
 	cfg, err := config.Load(config.ConfigPath)
@@ -96,7 +22,7 @@ func Link(owner string, institution string, accountType plaid.Products) error {
 	ctx := context.Background()
 
 	c := plaidclient.New(cfg.ClientID, cfg.Secret, cfg.Environment)
-	linkToken, err := createLinkToken(ctx, c, accountType)
+	linkToken, err := createLinkToken(ctx, c, &accountType, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create link token: %w", err)
 	}
@@ -110,7 +36,7 @@ func Link(owner string, institution string, accountType plaid.Products) error {
 		return fmt.Errorf("failed to read public token: %w", err)
 	}
 
-    accessToken, err := exchangeAccessToken(ctx, c, publicToken)
+	accessToken, err := exchangeAccessToken(ctx, c, publicToken)
 	if err != nil {
 		return fmt.Errorf("failed to get access token: %w", err)
 	}

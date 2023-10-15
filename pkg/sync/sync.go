@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/plaid/plaid-go/plaid"
 	"github.com/xiaomi388/beancount-automation/pkg/config"
 	"github.com/xiaomi388/beancount-automation/pkg/holding"
@@ -11,28 +13,20 @@ import (
 	"github.com/xiaomi388/beancount-automation/pkg/transaction"
 )
 
-func getAllTxnAccounts(ctx context.Context, cli *plaid.APIClient, cfg *config.Config) (map[string]plaid.AccountBase, error) {
+func getAllTxnAccounts(ctx context.Context, cli *plaid.APIClient, inst config.Institution) (map[string]plaid.AccountBase, error) {
 	accounts := map[string]plaid.AccountBase{}
 
-	for _, owner := range cfg.Owners {
-		for _, inst := range owner.Institutions {
-			if inst.Type != plaid.PRODUCTS_TRANSACTIONS {
-				continue
-			}
+	accountsGetRequest := plaid.NewAccountsGetRequest(inst.AccessToken)
+	accountsGetResp, httpResp, err := cli.PlaidApi.AccountsGet(ctx).AccountsGetRequest(
+		*accountsGetRequest,
+	).Execute()
+	if err != nil {
+		logrus.Debug(httpResp.Body)
+		return nil, fmt.Errorf("failed to execute account request: %w", err)
+	}
 
-			accountsGetRequest := plaid.NewAccountsGetRequest(inst.AccessToken)
-			accountsGetResp, _, err := cli.PlaidApi.AccountsGet(ctx).AccountsGetRequest(
-				*accountsGetRequest,
-			).Execute()
-			if err != nil {
-				return nil, fmt.Errorf("failed to execute account request: %w", err)
-
-			}
-
-			for _, account := range accountsGetResp.GetAccounts() {
-				accounts[account.GetAccountId()] = account
-			}
-		}
+	for _, account := range accountsGetResp.GetAccounts() {
+		accounts[account.GetAccountId()] = account
 	}
 
 	return accounts, nil
@@ -52,33 +46,33 @@ func Sync() error {
 
 	cli := plaidclient.New(cfg.ClientID, cfg.Secret, cfg.Environment)
 
-    holdings := []holding.Holding{}
+	holdings := []holding.Holding{}
 
 	for _, owner := range cfg.Owners {
 		for _, inst := range owner.Institutions {
 			switch inst.Type {
 			case plaid.PRODUCTS_TRANSACTIONS:
-                txnAccounts, err := getAllTxnAccounts(ctx, cli, cfg)
-                if err != nil {
-                    return fmt.Errorf("failed to get accounts: %w", err)
-                }
+				txnAccounts, err := getAllTxnAccounts(ctx, cli, inst)
+				if err != nil {
+					return fmt.Errorf("failed to get accounts for %s-%s: %w", owner.Name, inst.Name, err)
+				}
 				err = syncTransactions(ctx, cli, cfg, owner, inst, txns, txnAccounts)
-                if err != nil {
-                    return fmt.Errorf("failed to sync transactions for %s:%s: %w", owner.Name, inst.Name, err)
-                }
+				if err != nil {
+					return fmt.Errorf("failed to sync transactions for %s:%s: %w", owner.Name, inst.Name, err)
+				}
 			case plaid.PRODUCTS_INVESTMENTS:
-                hs, err := syncInvestmentHoldings(ctx, cli, owner, inst)
-                if err != nil {
-                    return fmt.Errorf("failed to sync holdings for %s:%s : %w", owner.Name, inst.Name, err)
-                }
-                holdings = append(holdings, hs...)
+				hs, err := syncInvestmentHoldings(ctx, cli, owner, inst)
+				if err != nil {
+					return fmt.Errorf("failed to sync holdings for %s:%s : %w", owner.Name, inst.Name, err)
+				}
+				holdings = append(holdings, hs...)
 			default:
 				return fmt.Errorf("unsupported account type %s on %s:%s", inst.Type, owner.Name, inst.Name)
 			}
 		}
 	}
 
-    holding.Dump(cfg.HoldingDBPath, holdings)
+	holding.Dump(cfg.HoldingDBPath, holdings)
 	fmt.Printf("Successfully synced all data to %q and %q.\n", cfg.TransactionDBPath, cfg.HoldingDBPath)
 	return nil
 }
@@ -151,7 +145,7 @@ func syncInvestmentHoldings(ctx context.Context, cli *plaid.APIClient, owner con
 		securities[security.SecurityId] = security
 	}
 
-    holdings := []holding.Holding{}
+	holdings := []holding.Holding{}
 	for _, h := range resp.GetHoldings() {
 		holdings = append(holdings, holding.New(h, securities[h.SecurityId], owner.Name, inst.Name, accounts[h.AccountId]))
 	}
