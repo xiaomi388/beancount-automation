@@ -4,25 +4,49 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/xiaomi388/beancount-automation/pkg/config"
+	"github.com/xiaomi388/beancount-automation/pkg/persistence"
 	"github.com/xiaomi388/beancount-automation/pkg/plaidclient"
+	"github.com/xiaomi388/beancount-automation/pkg/types"
 )
 
-func Relink(owner string, institution string) error {
-	cfg, err := config.Load(config.ConfigPath)
+func Relink(ownerName string, instName string, instType types.InstitutionType) error {
+	config, err := persistence.LoadConfig(persistence.DefaultConfigPath)
 	if err != nil {
-		return fmt.Errorf("failed to load config file: %w", err)
+		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	inst, ok := cfg.Institution(institution, owner)
+	owners, err := persistence.LoadOwners(persistence.DefaultOwnerPath)
+	if err != nil {
+		return fmt.Errorf("failed to load owners: %w", err)
+	}
+
+	owner, ok := types.GetOwner(owners, ownerName)
 	if !ok {
-		return fmt.Errorf("%s:%s not existed", owner, institution)
+		return fmt.Errorf("owner %s not existed", ownerName)
+	}
+
+	var accessToken string
+	switch instType {
+	case types.InstitutionTypeTransaction:
+		inst, ok := owner.TransactionInstitution(instName)
+		if !ok {
+			return fmt.Errorf("inst %s not existed", instName)
+		}
+		accessToken = inst.InstitutionBase.AccessToken
+	case types.InstitutionTypeInvestment:
+		inst, ok := owner.InvestmentInstitution(instName)
+		if !ok {
+			return fmt.Errorf("inst %s not existed", instName)
+		}
+		accessToken = inst.InstitutionBase.AccessToken
+	default:
+		panic(fmt.Sprintf("unsupported institution type: %s", instType))
 	}
 
 	ctx := context.Background()
 
-	c := plaidclient.New(cfg.ClientID, cfg.Secret, cfg.Environment)
-	linkToken, err := createLinkToken(ctx, c, nil, &inst.AccessToken)
+	c := plaidclient.New(config.ClientID, config.Secret, config.Environment)
+	linkToken, err := createLinkToken(ctx, c, nil, &accessToken)
 	if err != nil {
 		return fmt.Errorf("failed to create link token: %w", err)
 	}

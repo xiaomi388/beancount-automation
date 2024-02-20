@@ -3,6 +3,7 @@ package link
 import (
 	"bufio"
 	"context"
+	_ "embed"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +13,9 @@ import (
 	"github.com/plaid/plaid-go/plaid"
 	"github.com/sirupsen/logrus"
 )
+
+//go:embed link.html.tpl
+var linkHTML string
 
 func generateAuthPage(linkToken string) error {
 	tmpl, err := template.New("link.yaml").Parse(linkHTML)

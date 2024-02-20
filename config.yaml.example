@@ -2,5 +2,3 @@
 clientID: ""
 secret: ""
 environment: "Development" # "Development", "Sandbox", or "Production"
-transactionDBPath: "transaction.db"
-genBeancountFilePath: "plaid_gen.beancount" 

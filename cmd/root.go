@@ -5,15 +5,13 @@ package cmd
 
 import (
 	"os"
-	"path/filepath"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/xiaomi388/beancount-automation/cmd/dump"
 	"github.com/xiaomi388/beancount-automation/cmd/link"
-	"github.com/xiaomi388/beancount-automation/cmd/sync"
 	"github.com/xiaomi388/beancount-automation/cmd/relink"
-	"github.com/xiaomi388/beancount-automation/pkg/config"
+	"github.com/xiaomi388/beancount-automation/cmd/sync"
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -45,11 +43,11 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 
-	p, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
-	rootCmd.PersistentFlags().StringVar(&config.ConfigPath, "config", filepath.Join(p, "config.yaml"), "config file (default is config.yaml)")
+	//p, err := os.Getwd()
+	//if err != nil {
+	//	panic(err)
+	//}
+	//rootCmd.PersistentFlags().StringVar(&config.ConfigPath, "config", filepath.Join(p, "config.yaml"), "config file (default is config.yaml)")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
