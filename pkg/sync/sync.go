@@ -128,24 +128,42 @@ func syncTransactions(ctx context.Context, cli *plaid.APIClient, inst types.Tran
 }
 
 func syncInvestmentHoldings(ctx context.Context, cli *plaid.APIClient, inst types.InvestmentInstitution) (types.InvestmentInstitution, error) {
-	req := plaid.NewInvestmentsHoldingsGetRequest(inst.InstitutionBase.AccessToken)
-	resp, httpResp, err := cli.PlaidApi.InvestmentsHoldingsGet(ctx).InvestmentsHoldingsGetRequest(*req).Execute()
-	if err != nil {
-		return types.InvestmentInstitution{}, fmt.Errorf("failed to execute get request: %w: %s", err, httpResp.Body)
-	}
-
-	accountBases := resp.GetAccounts()
-	inst = inst.CreateOrUpdateInvestmentAccountBases(accountBases)
-
 	accountIDToHoldings := map[string][]plaid.Holding{}
 	securities := map[string]plaid.Security{}
+	transactions := map[string]plaid.InvestmentTransaction{}
 
-	for _, s := range resp.GetSecurities() {
-		securities[s.SecurityId] = s
+	{
+		req := plaid.NewInvestmentsHoldingsGetRequest(inst.InstitutionBase.AccessToken)
+		resp, httpResp, err := cli.PlaidApi.InvestmentsHoldingsGet(ctx).InvestmentsHoldingsGetRequest(*req).Execute()
+		if err != nil {
+			return types.InvestmentInstitution{}, fmt.Errorf("failed to execute get request: %w: %s", err, httpResp.Body)
+		}
+
+		accountBases := resp.GetAccounts()
+		inst = inst.CreateOrUpdateInvestmentAccountBases(accountBases)
+
+		for _, s := range resp.GetSecurities() {
+			securities[s.SecurityId] = s
+		}
+
+		for _, h := range resp.GetHoldings() {
+			accountIDToHoldings[h.AccountId] = append(accountIDToHoldings[h.AccountId], h)
+		}
 	}
 
-	for _, h := range resp.GetHoldings() {
-		accountIDToHoldings[h.AccountId] = append(accountIDToHoldings[h.AccountId], h)
+	{
+		req := plaid.NewInvestmentsTransactionsGetRequest(inst.InstitutionBase.AccessToken, "2020-01-01", "2999-01-01")
+		resp, httpResp, err := cli.PlaidApi.InvestmentsTransactionsGet(ctx).InvestmentsTransactionsGetRequest(*req).Execute()
+		if err != nil {
+			return types.InvestmentInstitution{}, fmt.Errorf("failed to execute transaction get request: %w: %s", err, httpResp.Body)
+		}
+
+		accountBases := resp.GetAccounts()
+		inst = inst.CreateOrUpdateInvestmentAccountBases(accountBases)
+
+		for _, t := range resp.GetInvestmentTransactions() {
+			transactions[t.InvestmentTransactionId] = t
+		}
 	}
 
 	for accountID, holdings := range accountIDToHoldings {
@@ -156,6 +174,7 @@ func syncInvestmentHoldings(ctx context.Context, cli *plaid.APIClient, inst type
 
 		account.Holdings = holdings
 		account.Securities = securities
+		account.Transactions = transactions
 		inst = inst.CreateOrUpdateInvestmentAccount(account)
 	}
 
