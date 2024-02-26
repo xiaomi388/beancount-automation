@@ -162,10 +162,10 @@ func dumpTransactions(owners []types.Owner, w io.Writer) error {
 		}
 	}
 
-	//bcTxns, err := modify(txns, bcTxns)
-	//if err != nil {
-	//	return fmt.Errorf("failed to modify transactions: %w", err)
-	//}
+	bcTxns, err := modify(owners, bcTxns)
+	if err != nil {
+		return fmt.Errorf("failed to modify transactions: %w", err)
+	}
 
 	accounts := map[string]Account{}
 	for _, bcTxn := range bcTxns {
@@ -193,10 +193,22 @@ func dumpHoldings(owners []types.Owner, w io.Writer) error {
 						continue
 					}
 
+					type Data struct {
+						Owner string
+						Institution string
+						Holding plaid.Holding
+						Security plaid.Security
+					} 
+
 					if err := template.Must(template.New("holding").Funcs(template.FuncMap{
 						"Deref":   func(s *string) string { return *s },
 						"Replace": func(s string) string { return string(regexp.MustCompile(`[^a-zA-Z0-9]`).ReplaceAll([]byte(s), nil)) },
-					}).Parse(holdingTemplate)).Execute(w, holding); err != nil {
+					}).Parse(holdingTemplate)).Execute(w, Data{
+						Owner: owner.Name,
+						Institution: inst.InstitutionBase.Name,
+						Holding: holding,
+						Security: account.Securities[holding.SecurityId],
+					}); err != nil {
 						return fmt.Errorf("failed to generate holding for %#v: %w", holding, err)
 					}
 

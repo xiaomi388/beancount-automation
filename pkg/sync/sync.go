@@ -138,6 +138,11 @@ func syncInvestmentHoldings(ctx context.Context, cli *plaid.APIClient, inst type
 	inst = inst.CreateOrUpdateInvestmentAccountBases(accountBases)
 
 	accountIDToHoldings := map[string][]plaid.Holding{}
+	securities := map[string]plaid.Security{}
+
+	for _, s := range resp.GetSecurities() {
+		securities[s.SecurityId] = s
+	}
 
 	for _, h := range resp.GetHoldings() {
 		accountIDToHoldings[h.AccountId] = append(accountIDToHoldings[h.AccountId], h)
@@ -150,6 +155,7 @@ func syncInvestmentHoldings(ctx context.Context, cli *plaid.APIClient, inst type
 		}
 
 		account.Holdings = holdings
+		account.Securities = securities
 		inst = inst.CreateOrUpdateInvestmentAccount(account)
 	}
 

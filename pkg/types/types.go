@@ -157,9 +157,10 @@ type InvestmentInstitution struct {
 }
 
 type InvestmentAccount struct {
-	AccoutBase   plaid.AccountBase `json:"accountBase"`
-	Holdings     []plaid.Holding
-	Transactions map[string]plaid.InvestmentTransaction
+	AccoutBase   plaid.AccountBase                      `json:"accountBase"`
+	Holdings     []plaid.Holding                        `json:"holdings"`
+	Securities   map[string]plaid.Security              `json:"securities"`
+	Transactions map[string]plaid.InvestmentTransaction `json:"transactions"`
 }
 
 func (ii InvestmentInstitution) InvestmentAccount(id string) (InvestmentAccount, bool) {
