@@ -5,10 +5,10 @@ def load():
     path = sys.argv[1]
     with open(path) as f:
         data = json.load(f)
-        return data["transactions"], data["beancount_transactions"]
+        return data["owners"], data["beancount_transactions"]
 
 def dump(bc_txns):
     path = sys.argv[1]
     with open(path, 'w') as f:
-        json.dump({"transactions": txns, "beancount_transactions": bc_txns}, f)
+        json.dump({"beancount_transactions": bc_txns}, f)
 
