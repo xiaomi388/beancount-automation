@@ -1,6 +1,3 @@
-package link
-
-const linkHTML = `
 <html>
 <body>
 <button id='linkButton'>Open Link - Institution Select</button>
@@ -36,4 +33,3 @@ linkHandler.open();
 </script>
 </body>
 </html>
-`

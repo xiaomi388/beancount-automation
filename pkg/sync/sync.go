@@ -7,15 +7,12 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/plaid/plaid-go/plaid"
-	"github.com/xiaomi388/beancount-automation/pkg/config"
-	"github.com/xiaomi388/beancount-automation/pkg/holding"
+	"github.com/xiaomi388/beancount-automation/pkg/persistence"
 	"github.com/xiaomi388/beancount-automation/pkg/plaidclient"
-	"github.com/xiaomi388/beancount-automation/pkg/transaction"
+	"github.com/xiaomi388/beancount-automation/pkg/types"
 )
 
-func getAllTxnAccounts(ctx context.Context, cli *plaid.APIClient, inst config.Institution) (map[string]plaid.AccountBase, error) {
-	accounts := map[string]plaid.AccountBase{}
-
+func getTransactionAccounts(ctx context.Context, cli *plaid.APIClient, inst types.InstitutionBase) ([]plaid.AccountBase, error) {
 	accountsGetRequest := plaid.NewAccountsGetRequest(inst.AccessToken)
 	accountsGetResp, httpResp, err := cli.PlaidApi.AccountsGet(ctx).AccountsGetRequest(
 		*accountsGetRequest,
@@ -25,66 +22,61 @@ func getAllTxnAccounts(ctx context.Context, cli *plaid.APIClient, inst config.In
 		return nil, fmt.Errorf("failed to execute account request: %w", err)
 	}
 
-	for _, account := range accountsGetResp.GetAccounts() {
-		accounts[account.GetAccountId()] = account
-	}
-
-	return accounts, nil
+	return accountsGetResp.GetAccounts(), nil
 }
 
 func Sync() error {
 	ctx := context.Background()
-	cfg, err := config.Load(config.ConfigPath)
+	cfg, err := persistence.LoadConfig(persistence.DefaultConfigPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	txns, err := transaction.Load(cfg.TransactionDBPath)
-	if err != nil {
-		return fmt.Errorf("failed to load transactions from db: %w", err)
-	}
-
 	cli := plaidclient.New(cfg.ClientID, cfg.Secret, cfg.Environment)
 
-	holdings := []holding.Holding{}
-
-	for _, owner := range cfg.Owners {
-		for _, inst := range owner.Institutions {
-			switch inst.Type {
-			case plaid.PRODUCTS_TRANSACTIONS:
-				txnAccounts, err := getAllTxnAccounts(ctx, cli, inst)
-				if err != nil {
-					return fmt.Errorf("failed to get accounts for %s-%s: %w", owner.Name, inst.Name, err)
-				}
-				err = syncTransactions(ctx, cli, cfg, owner, inst, txns, txnAccounts)
-				if err != nil {
-					return fmt.Errorf("failed to sync transactions for %s:%s: %w", owner.Name, inst.Name, err)
-				}
-			case plaid.PRODUCTS_INVESTMENTS:
-				hs, err := syncInvestmentHoldings(ctx, cli, owner, inst)
-				if err != nil {
-					return fmt.Errorf("failed to sync holdings for %s:%s : %w", owner.Name, inst.Name, err)
-				}
-				holdings = append(holdings, hs...)
-			default:
-				return fmt.Errorf("unsupported account type %s on %s:%s", inst.Type, owner.Name, inst.Name)
-			}
-		}
+	owners, err := persistence.LoadOwners(persistence.DefaultOwnerPath)
+	if err != nil {
+		return fmt.Errorf("failed to load owners: %w", err)
 	}
 
-	holding.Dump(cfg.HoldingDBPath, holdings)
-	fmt.Printf("Successfully synced all data to %q and %q.\n", cfg.TransactionDBPath, cfg.HoldingDBPath)
+	for _, owner := range owners {
+		for _, inst := range owner.TransactionInstitutions {
+			accountBases, err := getTransactionAccounts(ctx, cli, inst.InstitutionBase)
+			if err != nil {
+				return fmt.Errorf("failed to get accounts for %s:%s: %w", owner.Name, inst.InstitutionBase.Name, err)
+			}
+			inst = inst.CreateOrUpdateTransactionAccountBases(accountBases)
+			if inst, err = syncTransactions(ctx, cli, inst); err != nil {
+				return fmt.Errorf("failed to sync transactions: %w", err)
+			}
+
+			owner = owner.CreateOrUpdateTransactionInstitution(inst)
+		}
+
+		for _, inst := range owner.InvestmentInstitutions {
+			if inst, err = syncInvestmentHoldings(ctx, cli, inst); err != nil {
+				return fmt.Errorf("failed to sync transactions: %w", err)
+			}
+
+			owner = owner.CreateOrUpdateInvestmentInstitution(inst)
+		}
+
+		types.CreateOrUpdateOwner(owners, owner)
+	}
+
+	if err := persistence.DumpOwners(persistence.DefaultOwnerPath, owners); err != nil {
+		return fmt.Errorf("failed to dump owners: %w", err)
+	}
+	fmt.Printf("Successfully synced all data to %q.\n", persistence.DefaultOwnerPath)
 	return nil
 }
 
-// TODO: refactor the sync funcs by adding a syncer struct
-func syncTransactions(ctx context.Context, cli *plaid.APIClient, cfg *config.Config, owner config.Owner, inst config.Institution, txns map[string]transaction.Transaction, accounts map[string]plaid.AccountBase) error {
-
+func syncTransactions(ctx context.Context, cli *plaid.APIClient, inst types.TransactionInstitution) (types.TransactionInstitution, error) {
 	hasMore := true
-	cursor := inst.Cursor
+	cursor := inst.InstitutionBase.Cursor
 	for hasMore {
-		request := plaid.NewTransactionsSyncRequest(inst.AccessToken)
-		if inst.Cursor != "" {
+		request := plaid.NewTransactionsSyncRequest(inst.InstitutionBase.AccessToken)
+		if inst.InstitutionBase.Cursor != "" {
 			request.SetCursor(cursor)
 		}
 		resp, _, err := cli.PlaidApi.TransactionsSync(
@@ -92,63 +84,99 @@ func syncTransactions(ctx context.Context, cli *plaid.APIClient, cfg *config.Con
 		).TransactionsSyncRequest(*request).Execute()
 
 		if err != nil {
-			return fmt.Errorf("failed to execute sync request: %w", err)
+			return types.TransactionInstitution{}, fmt.Errorf("failed to execute sync request: %w", err)
 		}
 
 		for _, txn := range resp.GetAdded() {
-			txns[txn.TransactionId] = transaction.NewTransaction(txn, owner.Name, inst.Name, accounts[txn.AccountId])
+			account, ok := inst.TransactionAccount(txn.AccountId)
+			if !ok {
+				continue
+			}
+
+			account.Transactions[txn.TransactionId] = txn
+			inst = inst.CreateOrUpdateTransactionAccount(account)
 		}
 
 		for _, txn := range resp.GetModified() {
-			txns[txn.TransactionId] = transaction.NewTransaction(txn, owner.Name, inst.Name, accounts[txn.AccountId])
+			account, ok := inst.TransactionAccount(txn.AccountId)
+			if !ok {
+				continue
+			}
+
+			account.Transactions[txn.TransactionId] = txn
+			inst = inst.CreateOrUpdateTransactionAccount(account)
 		}
 
 		for _, txn := range resp.GetRemoved() {
-			delete(txns, *txn.TransactionId)
+			for _, account := range inst.TransactionAccounts {
+				if _, ok := account.Transactions[*txn.TransactionId]; ok {
+					delete(account.Transactions, *txn.TransactionId)
+					inst = inst.CreateOrUpdateTransactionAccount(account)
+					break
+				}
+			}
 		}
 
 		hasMore = resp.GetHasMore()
 
-		// Dump transaction
-		if err := transaction.Dump(cfg.TransactionDBPath, txns); err != nil {
-			return fmt.Errorf("failed to dump transactions: %w", err)
-		}
-
 		// Update cursor to the next cursor and inst and dump the inst.
 		cursor = resp.GetNextCursor()
-		inst.Cursor = cursor
-		if err := cfg.SetInstitution(inst, owner.Name); err != nil {
-			return fmt.Errorf("failed to set inst cursor: %w", err)
-		}
-		config.Dump(config.ConfigPath, cfg)
+		inst.InstitutionBase.Cursor = cursor
 	}
 
-	return nil
+	return inst, nil
 }
 
-func syncInvestmentHoldings(ctx context.Context, cli *plaid.APIClient, owner config.Owner, inst config.Institution) ([]holding.Holding, error) {
-	req := plaid.NewInvestmentsHoldingsGetRequest(inst.AccessToken)
-	resp, httpResp, err := cli.PlaidApi.InvestmentsHoldingsGet(ctx).InvestmentsHoldingsGetRequest(*req).Execute()
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute get request: %w: %s", err, httpResp.Body)
-	}
-
-	accounts := map[string]plaid.AccountBase{}
-	accountList := resp.GetAccounts()
-	for _, account := range accountList {
-		accounts[account.AccountId] = account
-	}
-
+func syncInvestmentHoldings(ctx context.Context, cli *plaid.APIClient, inst types.InvestmentInstitution) (types.InvestmentInstitution, error) {
+	accountIDToHoldings := map[string][]plaid.Holding{}
 	securities := map[string]plaid.Security{}
-	securityList := resp.GetSecurities()
-	for _, security := range securityList {
-		securities[security.SecurityId] = security
+	transactions := map[string]plaid.InvestmentTransaction{}
+
+	{
+		req := plaid.NewInvestmentsHoldingsGetRequest(inst.InstitutionBase.AccessToken)
+		resp, httpResp, err := cli.PlaidApi.InvestmentsHoldingsGet(ctx).InvestmentsHoldingsGetRequest(*req).Execute()
+		if err != nil {
+			return types.InvestmentInstitution{}, fmt.Errorf("failed to execute get request: %w: %s", err, httpResp.Body)
+		}
+
+		accountBases := resp.GetAccounts()
+		inst = inst.CreateOrUpdateInvestmentAccountBases(accountBases)
+
+		for _, s := range resp.GetSecurities() {
+			securities[s.SecurityId] = s
+		}
+
+		for _, h := range resp.GetHoldings() {
+			accountIDToHoldings[h.AccountId] = append(accountIDToHoldings[h.AccountId], h)
+		}
 	}
 
-	holdings := []holding.Holding{}
-	for _, h := range resp.GetHoldings() {
-		holdings = append(holdings, holding.New(h, securities[h.SecurityId], owner.Name, inst.Name, accounts[h.AccountId]))
+	{
+		req := plaid.NewInvestmentsTransactionsGetRequest(inst.InstitutionBase.AccessToken, "2020-01-01", "2999-01-01")
+		resp, httpResp, err := cli.PlaidApi.InvestmentsTransactionsGet(ctx).InvestmentsTransactionsGetRequest(*req).Execute()
+		if err != nil {
+			return types.InvestmentInstitution{}, fmt.Errorf("failed to execute transaction get request: %w: %s", err, httpResp.Body)
+		}
+
+		accountBases := resp.GetAccounts()
+		inst = inst.CreateOrUpdateInvestmentAccountBases(accountBases)
+
+		for _, t := range resp.GetInvestmentTransactions() {
+			transactions[t.InvestmentTransactionId] = t
+		}
 	}
 
-	return holdings, nil
+	for accountID, holdings := range accountIDToHoldings {
+		account, ok := inst.InvestmentAccount(accountID)
+		if !ok {
+			continue
+		}
+
+		account.Holdings = holdings
+		account.Securities = securities
+		account.Transactions = transactions
+		inst = inst.CreateOrUpdateInvestmentAccount(account)
+	}
+
+	return inst, nil
 }

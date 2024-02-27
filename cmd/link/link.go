@@ -10,6 +10,7 @@ import (
 	"github.com/plaid/plaid-go/plaid"
 	"github.com/spf13/cobra"
 	"github.com/xiaomi388/beancount-automation/pkg/link"
+	"github.com/xiaomi388/beancount-automation/pkg/types"
 )
 
 var (
@@ -28,7 +29,7 @@ var LinkCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		err := link.Link(*owner, *institution, plaid.Products(*accountType))
+		err := link.Link(*owner, *institution, types.InstitutionType(*accountType))
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

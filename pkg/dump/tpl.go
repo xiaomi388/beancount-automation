@@ -11,7 +11,11 @@ const transactionTemplate = `
 
 const openAccountTemplate = `
 2000-01-01 open Equity:OpenBalance
-{{ range $a, $_ := . }}2000-01-01 open {{ $a }}
+{{ range $name, $account := . }}2000-01-01 open {{ $name }}
+{{ if eq $account.Type "Assets"}}
+{{ $account.FirstTransactionDate }} pad {{ $name }} Equity:OpenBalance
+2999-01-01 balance {{ $name }} {{ $account.Balance }} USD
+{{ end }}
 {{ end }}
 `
 
