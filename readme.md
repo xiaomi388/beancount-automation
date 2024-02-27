@@ -32,7 +32,7 @@ Note: only plaid production account can be able to use `investments` type.
 Then, run this command to download all transaction data from Plaid:
 
 ```
-./bean-auto main.go sync
+./bean-auto sync
 ```
 
 ### Convert to Beancount Format
