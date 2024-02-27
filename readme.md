@@ -1,3 +1,7 @@
+# Beancount-Automation
+
+Beancount-Automation auto generates a beancount file by getting the transaction records from Plaid.
+
 ## How to Run
 
 ### Installation
