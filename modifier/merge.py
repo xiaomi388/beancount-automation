@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 import util
 
-txns, bc_txns = util.load()
+_, bc_txns = util.load()
 
-new_txns, new_bc_txns = [], []
+new_bc_txns = []
 
 merged_idx = set()
 
@@ -11,13 +11,13 @@ def account_to_string(account):
     return f'{account["type"]}:{account["owner"]}:{account["country"]}:{account["institution"]}:{account["plaid_account_type"]}:{account["name"]}'
 
 # self transfer
-for i in range(len(txns)):
+for i in range(len(bc_txns)):
     if bc_txns[i]["from_account"]["type"] != "Assets":
         continue
     if i in merged_idx:
         continue
 
-    for q in range(len(txns)):
+    for q in range(len(bc_txns)):
         if q in merged_idx or q == i or bc_txns[i]["unit"] != bc_txns[q]["unit"] or bc_txns[i]["amount"] != bc_txns[q]["amount"]:
             continue
 
@@ -50,19 +50,18 @@ for i in range(len(txns)):
             "amount": bc_txns[i]["amount"]
         }
 
-        new_txns.append(new_txn)
         new_bc_txns.append(new_bc_txn)
         merged_idx.update([i, q])
         break
 
 
 # inter transfer
-for i in range(len(txns)):
+for i in range(len(bc_txns)):
     if bc_txns[i]["from_account"]["type"] != "Assets":
         continue
     if i in merged_idx: 
         continue
-    for q in range(len(txns)):
+    for q in range(len(bc_txns)):
         if q in merged_idx:
             continue
         if q == i or bc_txns[i]["unit"] != bc_txns[q]["unit"] or bc_txns[q]["to_account"]["type"] != "Assets" or bc_txns[i]["amount"] != bc_txns[q]["amount"] or bc_txns[q]["to_account"]["owner"] == bc_txns[i]["from_account"]["owner"]:
@@ -90,15 +89,13 @@ for i in range(len(txns)):
             "amount": bc_txns[i]["amount"]
         }
 
-        new_txns.append(new_txn)
         new_bc_txns.append(new_bc_txn)
         merged_idx.update([i, q])
         break
 
 
-for i in range(len(txns)):
+for i in range(len(bc_txns)):
     if i not in merged_idx:
-        new_txns.append(txns[i])
         new_bc_txns.append(bc_txns[i])
 
-util.dump(new_txns, new_bc_txns)
+util.dump(new_bc_txns)
