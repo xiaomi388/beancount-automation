@@ -1,2 +1,7 @@
 __pycache__/
 build/
+.DS_Store
+.exrc
+.ignore
+.vim-bookmarks
+build.sh
