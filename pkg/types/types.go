@@ -47,9 +47,9 @@ func (o Owner) CreateOrUpdateTransactionInstitution(inst TransactionInstitution)
 }
 
 func (o Owner) InvestmentInstitution(name string) (InvestmentInstitution, bool) {
-	for _, inst := range o.TransactionInstitutions {
+	for _, inst := range o.InvestmentInstitutions {
 		if inst.InstitutionBase.Name == name {
-			return InvestmentInstitution{}, true
+			return inst, true
 		}
 	}
 
