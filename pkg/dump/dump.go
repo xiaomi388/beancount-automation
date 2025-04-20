@@ -123,14 +123,18 @@ func accountToBeanCountBalanceAccount(owner types.Owner, inst types.InstitutionB
 
 func dumpTransactions(owners []types.Owner, w io.Writer) error {
 	var bcTxns []BeancountTransaction
+	accounts := map[string]Account{}
+
 	for _, owner := range owners {
 		for _, inst := range owner.TransactionInstitutions {
 			for _, account := range inst.TransactionAccounts {
 				balanceAccount := accountToBeanCountBalanceAccount(owner, inst.InstitutionBase, account)
+				accounts[balanceAccount.ToString()] = balanceAccount
 				for _, txn := range account.Transactions {
 					re := regexp.MustCompile(`[^a-zA-Z0-9]`)
 
 					changeAccount := txnToChangeAccount(owner, inst.InstitutionBase, account, txn)
+					accounts[changeAccount.ToString()] = changeAccount
 					var fa, ta *Account
 					if txn.Amount > 0 {
 						fa = &balanceAccount
@@ -167,10 +171,11 @@ func dumpTransactions(owners []types.Owner, w io.Writer) error {
 		return fmt.Errorf("failed to modify transactions: %w", err)
 	}
 
-	accounts := map[string]Account{}
 	for _, bcTxn := range bcTxns {
+		// Add the accouts here one more time because the modifier might add more accounts.
 		accounts[bcTxn.FromAccount.ToString()] = bcTxn.FromAccount
 		accounts[bcTxn.ToAccount.ToString()] = bcTxn.ToAccount
+
 		if err := template.Must(template.New("transaction").Parse(transactionTemplate)).Execute(w, bcTxn); err != nil {
 			return fmt.Errorf("failed to generate transaction: %w", err)
 		}
@@ -194,20 +199,20 @@ func dumpHoldings(owners []types.Owner, w io.Writer) error {
 					}
 
 					type Data struct {
-						Owner string
+						Owner       string
 						Institution string
-						Holding plaid.Holding
-						Security plaid.Security
-					} 
+						Holding     plaid.Holding
+						Security    plaid.Security
+					}
 
 					if err := template.Must(template.New("holding").Funcs(template.FuncMap{
 						"Deref":   func(s *string) string { return *s },
 						"Replace": func(s string) string { return string(regexp.MustCompile(`[^a-zA-Z0-9]`).ReplaceAll([]byte(s), nil)) },
 					}).Parse(holdingTemplate)).Execute(w, Data{
-						Owner: owner.Name,
+						Owner:       owner.Name,
 						Institution: inst.InstitutionBase.Name,
-						Holding: holding,
-						Security: account.Securities[holding.SecurityId],
+						Holding:     holding,
+						Security:    account.Securities[holding.SecurityId],
 					}); err != nil {
 						return fmt.Errorf("failed to generate holding for %#v: %w", holding, err)
 					}
@@ -238,7 +243,10 @@ func Dump() error {
 		return fmt.Errorf("failed to dump holdings: %w", err)
 	}
 
-	os.WriteFile(persistence.DefaultBeancountPath, buf.Bytes(), 0644)
+	if err := os.WriteFile(persistence.DefaultBeancountPath, buf.Bytes(), 0644); err != nil {
+		return fmt.Errorf("failed to write beancount file: %w", err)
+	}
+
 	fmt.Printf("Successfully generated beancount file: %q.\n", persistence.DefaultBeancountPath)
 	return nil
 }
