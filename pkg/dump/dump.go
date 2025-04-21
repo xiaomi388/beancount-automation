@@ -59,7 +59,21 @@ type BeancountTransaction struct {
 	Unit        string            `json:"unit"`
 }
 
-func txnToChangeAccount(owner types.Owner, inst types.InstitutionBase, account types.TransactionAccount, txn plaid.Transaction) Account {
+func investTxnToChangeAccount(account types.InvestmentAccount, txn plaid.InvestmentTransaction) Account {
+	typ := "Expenses"
+	if txn.GetAmount() < 0 {
+		typ = "Income"
+	}
+
+	return Account{
+		Type:     typ,
+		Country:  account.AccoutBase.Balances.GetIsoCurrencyCode(),
+		Category: []string{strings.Title(txn.Type), strings.Title(txn.Subtype)},
+	}
+}
+
+
+func txnToChangeAccount(account types.TransactionAccount, txn plaid.Transaction) Account {
 	typ := "Expenses"
 	if txn.GetAmount() < 0 {
 		typ = "Income"
@@ -95,7 +109,7 @@ func leftDateBeforeRightDate(left string, right string) bool {
 	return leftDate.Before(rightDate)
 }
 
-func accountToBeanCountBalanceAccount(owner types.Owner, inst types.InstitutionBase, account types.TransactionAccount) Account {
+func txnAccountToBeanCountBalanceAccount(owner types.Owner, inst types.InstitutionBase, account types.TransactionAccount) Account {
 	plaidAccountType := account.AccoutBase.GetType()
 	typ := "Liabilities"
 	if plaidAccountType != plaid.ACCOUNTTYPE_CREDIT {
@@ -121,45 +135,69 @@ func accountToBeanCountBalanceAccount(owner types.Owner, inst types.InstitutionB
 	return balanceAccount
 }
 
+func investAccountToBeanCountBalanceAccount(owner types.Owner, inst types.InstitutionBase, account types.InvestmentAccount) Account {
+	name := string(regexp.MustCompile(`[^a-zA-Z0-9]`).ReplaceAll([]byte(account.AccoutBase.Name), nil))
+	balanceAccount := Account{
+		Type:             "Assets",
+		Owner:            owner.Name,
+		Country:          account.AccoutBase.Balances.GetIsoCurrencyCode(),
+		Institution:      inst.Name,
+		PlaidAccountType: strings.Title(string(account.AccoutBase.Type)),
+		Name:             name,
+		Balance:          account.AccoutBase.Balances.GetAvailable(),
+	}
+
+	for _, txn := range account.Transactions {
+		if leftDateBeforeRightDate(txn.Date, balanceAccount.FirstTransactionDate) {
+			balanceAccount.FirstTransactionDate = txn.Date
+		}
+	}
+
+	return balanceAccount
+}
+
+
 func dumpTransactions(owners []types.Owner, w io.Writer) error {
+	bcTxns, accounts, err := processTransactions(owners)
+	if err != nil {
+		return err
+	}
+
+	if err := writeTransactions(w, bcTxns, accounts); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func processTransactions(owners []types.Owner) ([]BeancountTransaction, map[string]Account, error) {
 	var bcTxns []BeancountTransaction
-	accounts := map[string]Account{}
+	accounts := make(map[string]Account)
 
 	for _, owner := range owners {
 		for _, inst := range owner.TransactionInstitutions {
 			for _, account := range inst.TransactionAccounts {
-				balanceAccount := accountToBeanCountBalanceAccount(owner, inst.InstitutionBase, account)
+				balanceAccount := txnAccountToBeanCountBalanceAccount(owner, inst.InstitutionBase, account)
 				accounts[balanceAccount.ToString()] = balanceAccount
 				for _, txn := range account.Transactions {
-					re := regexp.MustCompile(`[^a-zA-Z0-9]`)
-
-					changeAccount := txnToChangeAccount(owner, inst.InstitutionBase, account, txn)
+					changeAccount := txnToChangeAccount(account, txn)
 					accounts[changeAccount.ToString()] = changeAccount
-					var fa, ta *Account
-					if txn.Amount > 0 {
-						fa = &balanceAccount
-						ta = &changeAccount
-					} else {
-						fa = &changeAccount
-						ta = &balanceAccount
-					}
 
-					bcTxn := BeancountTransaction{
-						Date:        txn.Date,
-						Payee:       string(re.ReplaceAll([]byte(txn.GetMerchantName()), nil)),
-						Desc:        string(re.ReplaceAll([]byte(txn.GetName()), nil)),
-						FromAccount: *fa,
-						ToAccount:   *ta,
-						Metadata: map[string]string{
-							"id": txn.GetTransactionId(),
-						},
-						Tags:   []string{},
-						Unit:   txn.GetIsoCurrencyCode(),
-						Amount: float32(math.Abs(float64(txn.Amount))),
-					}
-					if txn.Amount > 0 {
-						bcTxn.Metadata["payer"] = owner.Name
-					}
+					bcTxn := txnToBeancountTransaction(owner, balanceAccount, changeAccount, txn)
+					bcTxns = append(bcTxns, bcTxn)
+				}
+			}
+		}
+
+		for _, inst := range owner.InvestmentInstitutions {
+			for _, account := range inst.InvestmentAccounts {
+				balanceAccount := investAccountToBeanCountBalanceAccount(owner, inst.InstitutionBase, account)
+				accounts[balanceAccount.ToString()] = balanceAccount
+				for _, txn := range account.Transactions {
+					changeAccount := investTxnToChangeAccount(account, txn)
+					accounts[changeAccount.ToString()] = changeAccount
+
+					bcTxn := investTxnToBeancountTransaction(owner, balanceAccount, changeAccount, txn)
 					bcTxns = append(bcTxns, bcTxn)
 				}
 			}
@@ -168,14 +206,80 @@ func dumpTransactions(owners []types.Owner, w io.Writer) error {
 
 	bcTxns, err := modify(owners, bcTxns)
 	if err != nil {
-		return fmt.Errorf("failed to modify transactions: %w", err)
+		return nil, nil, fmt.Errorf("failed to modify transactions: %w", err)
 	}
 
 	for _, bcTxn := range bcTxns {
-		// Add the accouts here one more time because the modifier might add more accounts.
 		accounts[bcTxn.FromAccount.ToString()] = bcTxn.FromAccount
 		accounts[bcTxn.ToAccount.ToString()] = bcTxn.ToAccount
+	}
 
+	return bcTxns, accounts, nil
+}
+
+func investTxnToBeancountTransaction(owner types.Owner, balanceAccount, changeAccount Account, txn plaid.InvestmentTransaction) BeancountTransaction {
+	re := regexp.MustCompile(`[^a-zA-Z0-9]`)
+	var fa, ta *Account
+	if txn.Amount > 0 {
+		fa = &balanceAccount
+		ta = &changeAccount
+	} else {
+		fa = &changeAccount
+		ta = &balanceAccount
+	}
+
+	bcTxn := BeancountTransaction{
+		Date:        txn.Date,
+		Desc:        string(re.ReplaceAll([]byte(txn.GetName()), nil)),
+		FromAccount: *fa,
+		ToAccount:   *ta,
+		Metadata: map[string]string{
+			"id": txn.GetInvestmentTransactionId(),
+		},
+		Tags:   []string{},
+		Unit:   txn.GetIsoCurrencyCode(),
+		Amount: float32(math.Abs(float64(txn.Amount))),
+	}
+	if txn.Amount > 0 {
+		bcTxn.Metadata["payer"] = owner.Name
+	}
+
+	return bcTxn
+}
+
+func txnToBeancountTransaction(owner types.Owner, balanceAccount, changeAccount Account, txn plaid.Transaction) BeancountTransaction {
+	re := regexp.MustCompile(`[^a-zA-Z0-9]`)
+	var fa, ta *Account
+	if txn.Amount > 0 {
+		fa = &balanceAccount
+		ta = &changeAccount
+	} else {
+		fa = &changeAccount
+		ta = &balanceAccount
+	}
+
+	bcTxn := BeancountTransaction{
+		Date:        txn.Date,
+		Payee:       string(re.ReplaceAll([]byte(txn.GetMerchantName()), nil)),
+		Desc:        string(re.ReplaceAll([]byte(txn.GetName()), nil)),
+		FromAccount: *fa,
+		ToAccount:   *ta,
+		Metadata: map[string]string{
+			"id": txn.GetTransactionId(),
+		},
+		Tags:   []string{},
+		Unit:   txn.GetIsoCurrencyCode(),
+		Amount: float32(math.Abs(float64(txn.Amount))),
+	}
+	if txn.Amount > 0 {
+		bcTxn.Metadata["payer"] = owner.Name
+	}
+
+	return bcTxn
+}
+
+func writeTransactions(w io.Writer, bcTxns []BeancountTransaction, accounts map[string]Account) error {
+	for _, bcTxn := range bcTxns {
 		if err := template.Must(template.New("transaction").Parse(transactionTemplate)).Execute(w, bcTxn); err != nil {
 			return fmt.Errorf("failed to generate transaction: %w", err)
 		}
@@ -236,12 +340,11 @@ func Dump() error {
 
 	if err := dumpTransactions(owners, w); err != nil {
 		return fmt.Errorf("failed to dump transactions: %w", err)
-
 	}
 
-	if err := dumpHoldings(owners, w); err != nil {
-		return fmt.Errorf("failed to dump holdings: %w", err)
-	}
+	// if err := dumpHoldings(owners, w); err != nil {
+	// 	return fmt.Errorf("failed to dump holdings: %w", err)
+	// }
 
 	if err := os.WriteFile(persistence.DefaultBeancountPath, buf.Bytes(), 0644); err != nil {
 		return fmt.Errorf("failed to write beancount file: %w", err)
