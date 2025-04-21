@@ -55,6 +55,10 @@ func Sync() error {
 
 		for _, inst := range owner.InvestmentInstitutions {
 			if inst, err = syncInvestmentHoldings(ctx, cli, inst); err != nil {
+				return fmt.Errorf("failed to sync holdings: %w", err)
+			}
+
+			if inst, err = syncInvestmentTransactions(ctx, cli, inst); err != nil {
 				return fmt.Errorf("failed to sync transactions: %w", err)
 			}
 
@@ -122,6 +126,37 @@ func syncTransactions(ctx context.Context, cli *plaid.APIClient, inst types.Tran
 		// Update cursor to the next cursor and inst and dump the inst.
 		cursor = resp.GetNextCursor()
 		inst.InstitutionBase.Cursor = cursor
+	}
+
+	return inst, nil
+}
+
+func syncInvestmentTransactions(ctx context.Context, cli *plaid.APIClient, inst types.InvestmentInstitution) (types.InvestmentInstitution, error) {
+	// Create a request for investment transactions
+	req := plaid.NewInvestmentsTransactionsGetRequest(inst.InstitutionBase.AccessToken, "2020-01-01", "2999-01-01")
+
+	// Execute the request
+	resp, httpResp, err := cli.PlaidApi.InvestmentsTransactionsGet(ctx).InvestmentsTransactionsGetRequest(*req).Execute()
+	if err != nil {
+		return types.InvestmentInstitution{}, fmt.Errorf("failed to execute transaction get request: %w: %s", err, httpResp.Body)
+	}
+
+	// Update the institution with account bases
+	accountBases := resp.GetAccounts()
+	inst = inst.CreateOrUpdateInvestmentAccountBases(accountBases)
+
+	// Map to store transactions
+	transactions := map[string]plaid.InvestmentTransaction{}
+
+	// Iterate over the transactions and store them
+	for _, t := range resp.GetInvestmentTransactions() {
+		transactions[t.InvestmentTransactionId] = t
+	}
+
+	// Update each account with its transactions
+	for _, account := range inst.InvestmentAccounts {
+		account.Transactions = transactions
+		inst = inst.CreateOrUpdateInvestmentAccount(account)
 	}
 
 	return inst, nil
