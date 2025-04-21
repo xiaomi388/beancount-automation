@@ -61,7 +61,7 @@ type BeancountTransaction struct {
 
 func investTxnToChangeAccount(account types.InvestmentAccount, txn plaid.InvestmentTransaction) Account {
 	typ := "Expenses"
-	if txn.GetAmount() < 0 {
+	if txn.GetAmount() > 0 {
 		typ = "Income"
 	}
 
@@ -220,7 +220,7 @@ func processTransactions(owners []types.Owner) ([]BeancountTransaction, map[stri
 func investTxnToBeancountTransaction(owner types.Owner, balanceAccount, changeAccount Account, txn plaid.InvestmentTransaction) BeancountTransaction {
 	re := regexp.MustCompile(`[^a-zA-Z0-9]`)
 	var fa, ta *Account
-	if txn.Amount > 0 {
+	if txn.Amount < 0 {
 		fa = &balanceAccount
 		ta = &changeAccount
 	} else {
