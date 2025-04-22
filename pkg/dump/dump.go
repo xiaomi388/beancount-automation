@@ -60,8 +60,9 @@ type BeancountTransaction struct {
 }
 
 func investTxnToChangeAccount(account types.InvestmentAccount, txn plaid.InvestmentTransaction) Account {
+	amount := deriveInvestTxnAmount(account, txn)
 	typ := "Expenses"
-	if txn.GetAmount() > 0 {
+	if amount > 0 {
 		typ = "Income"
 	}
 
@@ -71,7 +72,6 @@ func investTxnToChangeAccount(account types.InvestmentAccount, txn plaid.Investm
 		Category: []string{strings.Title(txn.Type), strings.Title(txn.Subtype)},
 	}
 }
-
 
 func txnToChangeAccount(account types.TransactionAccount, txn plaid.Transaction) Account {
 	typ := "Expenses"
@@ -144,7 +144,7 @@ func investAccountToBeanCountBalanceAccount(owner types.Owner, inst types.Instit
 		Institution:      inst.Name,
 		PlaidAccountType: strings.Title(string(account.AccoutBase.Type)),
 		Name:             name,
-		Balance:          account.AccoutBase.Balances.GetAvailable(),
+		Balance:          account.AccoutBase.Balances.GetCurrent(),
 	}
 
 	for _, txn := range account.Transactions {
@@ -155,7 +155,6 @@ func investAccountToBeanCountBalanceAccount(owner types.Owner, inst types.Instit
 
 	return balanceAccount
 }
-
 
 func dumpTransactions(owners []types.Owner, w io.Writer) error {
 	bcTxns, accounts, err := processTransactions(owners)
@@ -197,7 +196,7 @@ func processTransactions(owners []types.Owner) ([]BeancountTransaction, map[stri
 					changeAccount := investTxnToChangeAccount(account, txn)
 					accounts[changeAccount.ToString()] = changeAccount
 
-					bcTxn := investTxnToBeancountTransaction(owner, balanceAccount, changeAccount, txn)
+					bcTxn := investTxnToBeancountTransaction(owner, account, balanceAccount, changeAccount, txn)
 					bcTxns = append(bcTxns, bcTxn)
 				}
 			}
@@ -217,10 +216,22 @@ func processTransactions(owners []types.Owner) ([]BeancountTransaction, map[stri
 	return bcTxns, accounts, nil
 }
 
-func investTxnToBeancountTransaction(owner types.Owner, balanceAccount, changeAccount Account, txn plaid.InvestmentTransaction) BeancountTransaction {
-	re := regexp.MustCompile(`[^a-zA-Z0-9]`)
+func deriveInvestTxnAmount(account types.InvestmentAccount, txn plaid.InvestmentTransaction) float32 {
+	amount := txn.Amount
+	if amount == 0 {
+		amount = txn.Price * txn.Quantity
+		if amount == 0 {
+			amount = txn.Quantity * (*account.Securities[*txn.SecurityId.Get()].ClosePrice.Get())
+		}
+	}
+
+	return amount
+}
+
+func investTxnToBeancountTransaction(owner types.Owner, investAccount types.InvestmentAccount, balanceAccount, changeAccount Account, txn plaid.InvestmentTransaction) BeancountTransaction {
+	amount := deriveInvestTxnAmount(investAccount, txn)
 	var fa, ta *Account
-	if txn.Amount < 0 {
+	if amount < 0 {
 		fa = &balanceAccount
 		ta = &changeAccount
 	} else {
@@ -228,6 +239,7 @@ func investTxnToBeancountTransaction(owner types.Owner, balanceAccount, changeAc
 		ta = &balanceAccount
 	}
 
+	re := regexp.MustCompile(`[^a-zA-Z0-9]`)
 	bcTxn := BeancountTransaction{
 		Date:        txn.Date,
 		Desc:        string(re.ReplaceAll([]byte(txn.GetName()), nil)),
@@ -238,7 +250,7 @@ func investTxnToBeancountTransaction(owner types.Owner, balanceAccount, changeAc
 		},
 		Tags:   []string{},
 		Unit:   txn.GetIsoCurrencyCode(),
-		Amount: float32(math.Abs(float64(txn.Amount))),
+		Amount: float32(math.Abs(float64(amount))),
 	}
 	if txn.Amount > 0 {
 		bcTxn.Metadata["payer"] = owner.Name
