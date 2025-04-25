@@ -73,6 +73,8 @@ func investTxnToChangeAccount(account types.InvestmentAccount, txn plaid.Investm
 	}
 }
 
+// Add a add 2 int func here, AI!
+
 func txnToChangeAccount(account types.TransactionAccount, txn plaid.Transaction) Account {
 	typ := "Expenses"
 	if txn.GetAmount() < 0 {
