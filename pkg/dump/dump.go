@@ -57,10 +57,7 @@ type BeancountTransaction struct {
 	FromAccount Account           `json:"from_account"`
 	Amount      float32           `json:"amount"`
 	Unit        string            `json:"unit"`
-}
-
-// Fix the linting errors for me, AI!
-
+// investTxnToChangeAccount converts an investment transaction to a change account.
 func investTxnToChangeAccount(account types.InvestmentAccount, txn plaid.InvestmentTransaction) Account {
 	amount := deriveInvestTxnAmount(account, txn)
 	typ := "Expenses"
