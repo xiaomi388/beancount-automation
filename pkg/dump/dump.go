@@ -73,16 +73,6 @@ func investTxnToChangeAccount(account types.InvestmentAccount, txn plaid.Investm
 	}
 }
 
-// addThreeIntegers adds three integers and returns the result.
-func addThreeIntegers(a int, b int, c int) int {
-	return a + b + c
-}
-
-// addTwoIntegers adds two integers and returns the result.
-func addTwoIntegers(a int, b int) int {
-	return a + b
-}
-
 func txnToChangeAccount(account types.TransactionAccount, txn plaid.Transaction) Account {
 	typ := "Expenses"
 	if txn.GetAmount() < 0 {
