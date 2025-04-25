@@ -73,7 +73,12 @@ func investTxnToChangeAccount(account types.InvestmentAccount, txn plaid.Investm
 	}
 }
 
-// Add a add 2 int func here, AI!
+}
+
+// addTwoIntegers adds two integers and returns the result.
+func addTwoIntegers(a int, b int) int {
+	return a + b
+}
 
 func txnToChangeAccount(account types.TransactionAccount, txn plaid.Transaction) Account {
 	typ := "Expenses"
