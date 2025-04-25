@@ -73,7 +73,10 @@ func investTxnToChangeAccount(account types.InvestmentAccount, txn plaid.Investm
 	}
 }
 
-// add a func to add 3 ints AI!
+// addThreeIntegers adds three integers and returns the result.
+func addThreeIntegers(a int, b int, c int) int {
+	return a + b + c
+}
 
 // addTwoIntegers adds two integers and returns the result.
 func addTwoIntegers(a int, b int) int {
