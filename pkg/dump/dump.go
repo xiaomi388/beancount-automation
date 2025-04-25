@@ -57,7 +57,8 @@ type BeancountTransaction struct {
 	FromAccount Account           `json:"from_account"`
 	Amount      float32           `json:"amount"`
 	Unit        string            `json:"unit"`
-// investTxnToChangeAccount converts an investment transaction to a change account.
+}
+
 func investTxnToChangeAccount(account types.InvestmentAccount, txn plaid.InvestmentTransaction) Account {
 	amount := deriveInvestTxnAmount(account, txn)
 	typ := "Expenses"
@@ -70,6 +71,13 @@ func investTxnToChangeAccount(account types.InvestmentAccount, txn plaid.Investm
 		Country:  account.AccoutBase.Balances.GetIsoCurrencyCode(),
 		Category: []string{strings.Title(txn.Type), strings.Title(txn.Subtype)},
 	}
+}
+
+// add a func to add 3 ints AI!
+
+// addTwoIntegers adds two integers and returns the result.
+func addTwoIntegers(a int, b int) int {
+	return a + b
 }
 
 func txnToChangeAccount(account types.TransactionAccount, txn plaid.Transaction) Account {
