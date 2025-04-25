@@ -68,7 +68,7 @@ func investTxnToChangeAccount(account types.InvestmentAccount, txn plaid.Investm
 	return Account{
 		Type:     typ,
 		Country:  account.AccoutBase.Balances.GetIsoCurrencyCode(),
-		Category: []string{strings.Title(txn.Type), strings.Title(txn.Subtype)},
+		Category: []string{strings.ToTitle(txn.Type), strings.ToTitle(txn.Subtype)},
 	}
 }
 
