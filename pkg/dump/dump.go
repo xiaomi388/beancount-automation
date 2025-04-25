@@ -59,6 +59,8 @@ type BeancountTransaction struct {
 	Unit        string            `json:"unit"`
 }
 
+// Fix the linting errors for me, AI!
+
 func investTxnToChangeAccount(account types.InvestmentAccount, txn plaid.InvestmentTransaction) Account {
 	amount := deriveInvestTxnAmount(account, txn)
 	typ := "Expenses"
@@ -71,13 +73,6 @@ func investTxnToChangeAccount(account types.InvestmentAccount, txn plaid.Investm
 		Country:  account.AccoutBase.Balances.GetIsoCurrencyCode(),
 		Category: []string{strings.Title(txn.Type), strings.Title(txn.Subtype)},
 	}
-}
-
-}
-
-// addTwoIntegers adds two integers and returns the result.
-func addTwoIntegers(a int, b int) int {
-	return a + b
 }
 
 func txnToChangeAccount(account types.TransactionAccount, txn plaid.Transaction) Account {
