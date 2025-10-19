@@ -10,6 +10,10 @@ import (
 	"github.com/xiaomi388/beancount-automation/pkg/types"
 )
 
+var (
+	getAccessTokenFn = getAccessToken
+)
+
 func Link(ownerName string, instName string, instType types.InstitutionType) error {
 	config, err := persistence.LoadConfig(persistence.DefaultConfigPath)
 	if err != nil {
@@ -80,7 +84,7 @@ func linkTransactionInstitution(owner types.Owner, instName string, config types
 		return types.Owner{}, fmt.Errorf("transaction institution %s:%s already existed", owner.Name, instName)
 	}
 
-	accessToken, err := getAccessToken(config.ClientID, config.Secret, config.Environment, instTypeToPlaidProduct(types.InstitutionTypeTransaction))
+	accessToken, err := getAccessTokenFn(config.ClientID, config.Secret, config.Environment, instTypeToPlaidProduct(types.InstitutionTypeTransaction))
 	if err != nil {
 		return types.Owner{}, fmt.Errorf("failed to get access token: %w", err)
 	}
@@ -100,7 +104,7 @@ func linkInvestmentInstitution(owner types.Owner, instName string, config types.
 		return types.Owner{}, fmt.Errorf("investment institution %s:%s already existed", owner.Name, instName)
 	}
 
-	accessToken, err := getAccessToken(config.ClientID, config.Secret, config.Environment, instTypeToPlaidProduct(types.InstitutionTypeInvestment))
+	accessToken, err := getAccessTokenFn(config.ClientID, config.Secret, config.Environment, instTypeToPlaidProduct(types.InstitutionTypeInvestment))
 	if err != nil {
 		return types.Owner{}, fmt.Errorf("failed to get access token: %w", err)
 	}
