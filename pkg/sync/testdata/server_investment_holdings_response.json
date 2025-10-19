@@ -1,0 +1,39 @@
+{
+  "accounts": [
+    {
+      "account_id": "invest-account-1",
+      "name": "Brokerage",
+      "official_name": "Brokerage Account",
+      "type": "investment",
+      "subtype": "brokerage",
+      "mask": "1111",
+      "balances": {
+        "available": null,
+        "current": 1050.25,
+        "iso_currency_code": "USD"
+      }
+    }
+  ],
+  "holdings": [
+    {
+      "account_id": "invest-account-1",
+      "security_id": "security-1",
+      "quantity": 10.5,
+      "institution_value": 1050.25,
+      "cost_basis": 800,
+      "iso_currency_code": "USD"
+    }
+  ],
+  "securities": [
+    {
+      "security_id": "security-1",
+      "name": "Test Growth Fund",
+      "ticker_symbol": "TGF",
+      "type": "etf",
+      "iso_currency_code": "USD",
+      "close_price": 100.5,
+      "close_price_as_of": "2024-01-15"
+    }
+  ],
+  "request_id": "holdings-request"
+}

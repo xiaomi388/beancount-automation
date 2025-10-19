@@ -1,0 +1,157 @@
+[
+  {
+    "name": "alice",
+    "transactionInstitutions": [
+      {
+        "institutionBase": {
+          "name": "mock-bank",
+          "accessToken": "token-123",
+          "cursor": "cursor-1"
+        },
+        "transactionAccounts": [
+          {
+            "accountBase": {
+              "account_id": "account-1",
+              "balances": {
+                "available": 995.01,
+                "current": 995.01,
+                "iso_currency_code": "USD",
+                "limit": null,
+                "unofficial_currency_code": null
+              },
+              "mask": "0000",
+              "name": "Checking",
+              "official_name": "Checking",
+              "subtype": "checking",
+              "type": "depository"
+            },
+            "transactions": {
+              "txn-1": {
+                "account_id": "account-1",
+                "account_owner": null,
+                "amount": 4.99,
+                "authorized_date": "2024-01-14",
+                "authorized_datetime": null,
+                "category": [
+                  "Food and Drink"
+                ],
+                "category_id": "13001000",
+                "date": "2024-01-15",
+                "datetime": null,
+                "iso_currency_code": "USD",
+                "location": {
+                  "address": null,
+                  "city": null,
+                  "country": null,
+                  "lat": null,
+                  "lon": null,
+                  "postal_code": null,
+                  "region": null,
+                  "store_number": null
+                },
+                "name": "Coffee Shop",
+                "payment_channel": "in_store",
+                "payment_meta": {
+                  "by_order_of": null,
+                  "payee": null,
+                  "payer": null,
+                  "payment_method": null,
+                  "payment_processor": null,
+                  "ppd_id": null,
+                  "reason": null,
+                  "reference_number": null
+                },
+                "pending": false,
+                "pending_transaction_id": null,
+                "personal_finance_category": {
+                  "detailed": "FOOD_AND_DRINK_FAST_FOOD",
+                  "primary": "FOOD_AND_DRINK"
+                },
+                "transaction_code": null,
+                "transaction_id": "txn-1",
+                "unofficial_currency_code": null
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "investmentInstitutions": [
+      {
+        "InstitutionBase": {
+          "name": "mock-invest",
+          "accessToken": "invest-token-456",
+          "cursor": ""
+        },
+        "InvestmentAccounts": [
+          {
+            "accountBase": {
+              "account_id": "invest-account-1",
+              "balances": {
+                "available": null,
+                "current": 1050.25,
+                "iso_currency_code": "USD",
+                "limit": null,
+                "unofficial_currency_code": null
+              },
+              "mask": "1111",
+              "name": "Brokerage",
+              "official_name": "Brokerage Account",
+              "subtype": "brokerage",
+              "type": "investment"
+            },
+            "holdings": [
+              {
+                "account_id": "invest-account-1",
+                "cost_basis": 800,
+                "institution_price": 0,
+                "institution_price_as_of": null,
+                "institution_value": 1050.25,
+                "iso_currency_code": "USD",
+                "quantity": 10.5,
+                "security_id": "security-1",
+                "unofficial_currency_code": null
+              }
+            ],
+            "securities": {
+              "security-1": {
+                "close_price": 100.5,
+                "close_price_as_of": "2024-01-15",
+                "cusip": null,
+                "institution_id": null,
+                "institution_security_id": null,
+                "is_cash_equivalent": null,
+                "isin": null,
+                "iso_currency_code": "USD",
+                "name": "Test Growth Fund",
+                "proxy_security_id": null,
+                "security_id": "security-1",
+                "sedol": null,
+                "ticker_symbol": "TGF",
+                "type": "etf",
+                "unofficial_currency_code": null
+              }
+            },
+            "transactions": {
+              "inv-txn-1": {
+                "account_id": "invest-account-1",
+                "amount": -50.75,
+                "date": "2024-01-15",
+                "fees": 0,
+                "investment_transaction_id": "inv-txn-1",
+                "iso_currency_code": "USD",
+                "name": "Dividend Reinvestment",
+                "price": 100.5,
+                "quantity": 0.5,
+                "security_id": "security-1",
+                "subtype": "cash",
+                "type": "cash",
+                "unofficial_currency_code": null
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

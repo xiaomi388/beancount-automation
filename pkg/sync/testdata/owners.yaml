@@ -11,6 +11,15 @@
         "transactionAccounts": []
       }
     ],
-    "investmentInstitutions": []
+    "investmentInstitutions": [
+      {
+        "InstitutionBase": {
+          "name": "mock-invest",
+          "accessToken": "invest-token-456",
+          "cursor": ""
+        },
+        "InvestmentAccounts": []
+      }
+    ]
   }
 ]

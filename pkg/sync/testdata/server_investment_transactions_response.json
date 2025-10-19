@@ -1,0 +1,45 @@
+{
+  "accounts": [
+    {
+      "account_id": "invest-account-1",
+      "name": "Brokerage",
+      "official_name": "Brokerage Account",
+      "type": "investment",
+      "subtype": "brokerage",
+      "mask": "1111",
+      "balances": {
+        "available": null,
+        "current": 1050.25,
+        "iso_currency_code": "USD"
+      }
+    }
+  ],
+  "investment_transactions": [
+    {
+      "investment_transaction_id": "inv-txn-1",
+      "account_id": "invest-account-1",
+      "security_id": "security-1",
+      "amount": -50.75,
+      "fees": 0,
+      "price": 100.5,
+      "quantity": 0.5,
+      "name": "Dividend Reinvestment",
+      "date": "2024-01-15",
+      "type": "cash",
+      "subtype": "cash",
+      "iso_currency_code": "USD"
+    }
+  ],
+  "securities": [
+    {
+      "security_id": "security-1",
+      "name": "Test Growth Fund",
+      "ticker_symbol": "TGF",
+      "type": "etf",
+      "iso_currency_code": "USD",
+      "close_price": 100.5,
+      "close_price_as_of": "2024-01-15"
+    }
+  ],
+  "request_id": "investment-transactions-request"
+}

@@ -52,6 +52,20 @@ func TestSyncUpdatesTransactionInstitutionIntegration(t *testing.T) {
 		t.Fatalf("failed to read owners: %v", err)
 	}
 
+	goldenPath := filepath.Join(origDir, "testdata", "owners_after_sync.json")
+	if os.Getenv("UPDATE_SYNC_GOLDEN") == "1" {
+		if err := os.WriteFile(goldenPath, ownersData, 0644); err != nil {
+			t.Fatalf("failed to update golden file: %v", err)
+		}
+	}
+	goldenData, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatalf("failed to read golden file: %v", err)
+	}
+	if !jsonEqual(ownersData, goldenData) {
+		t.Fatalf("owners.yaml mismatch golden file\n got: %s\nwant: %s", ownersData, goldenData)
+	}
+
 	var owners []types.Owner
 	if err := json.Unmarshal(ownersData, &owners); err != nil {
 		t.Fatalf("failed to unmarshal owners: %v", err)
@@ -84,6 +98,42 @@ func TestSyncUpdatesTransactionInstitutionIntegration(t *testing.T) {
 	if txn.Amount != 4.99 {
 		t.Fatalf("unexpected transaction amount: %v", txn.Amount)
 	}
+
+	invInst, ok := owners[0].InvestmentInstitution("mock-invest")
+	if !ok {
+		t.Fatalf("expected mock-invest institution to exist")
+	}
+	invAccount, ok := invInst.InvestmentAccount("invest-account-1")
+	if !ok {
+		t.Fatalf("expected invest-account-1 to exist")
+	}
+	if len(invAccount.Holdings) != 1 {
+		t.Fatalf("expected 1 holding, got %d", len(invAccount.Holdings))
+	}
+	holding := invAccount.Holdings[0]
+	if holding.SecurityId != "security-1" {
+		t.Fatalf("unexpected holding security id: %s", holding.SecurityId)
+	}
+	if holding.Quantity != 10.5 {
+		t.Fatalf("unexpected holding quantity: %v", holding.Quantity)
+	}
+	if invAccount.Securities == nil {
+		t.Fatalf("expected securities map to be populated")
+	}
+	ticker := invAccount.Securities["security-1"].TickerSymbol.Get()
+	if ticker == nil || *ticker != "TGF" {
+		t.Fatalf("expected ticker TGF, got %+v", invAccount.Securities["security-1"].TickerSymbol)
+	}
+	if len(invAccount.Transactions) != 1 {
+		t.Fatalf("expected 1 investment txn, got %d", len(invAccount.Transactions))
+	}
+	invTxn, ok := invAccount.Transactions["inv-txn-1"]
+	if !ok {
+		t.Fatalf("expected inv-txn-1 to exist")
+	}
+	if invTxn.Amount != -50.75 {
+		t.Fatalf("unexpected investment transaction amount: %v", invTxn.Amount)
+	}
 }
 
 func copySyncTestFile(t *testing.T, src, dst string) {
@@ -113,6 +163,20 @@ func newPlaidTestServer(t *testing.T, baseDir string) *httptest.Server {
 		ensureRequestBody(t, r.Body, filepath.Join(baseDir, "testdata", "server_transactions_request.json"))
 		w.Header().Set("Content-Type", "application/json")
 		serveJSON(t, w, filepath.Join(baseDir, "testdata", "server_transactions_response.json"))
+	})
+
+	mux.HandleFunc("/investments/holdings/get", func(w http.ResponseWriter, r *http.Request) {
+		ensureMethod(t, r, http.MethodPost)
+		ensureRequestBody(t, r.Body, filepath.Join(baseDir, "testdata", "server_investment_holdings_request.json"))
+		w.Header().Set("Content-Type", "application/json")
+		serveJSON(t, w, filepath.Join(baseDir, "testdata", "server_investment_holdings_response.json"))
+	})
+
+	mux.HandleFunc("/investments/transactions/get", func(w http.ResponseWriter, r *http.Request) {
+		ensureMethod(t, r, http.MethodPost)
+		ensureRequestBody(t, r.Body, filepath.Join(baseDir, "testdata", "server_investment_transactions_request.json"))
+		w.Header().Set("Content-Type", "application/json")
+		serveJSON(t, w, filepath.Join(baseDir, "testdata", "server_investment_transactions_response.json"))
 	})
 
 	return httptest.NewServer(mux)
@@ -190,4 +254,16 @@ func contains(actual, expected interface{}) bool {
 	default:
 		return reflect.DeepEqual(actual, expected)
 	}
+}
+
+func jsonEqual(leftRaw, rightRaw []byte) bool {
+	var left interface{}
+	if err := json.Unmarshal(leftRaw, &left); err != nil {
+		return false
+	}
+	var right interface{}
+	if err := json.Unmarshal(rightRaw, &right); err != nil {
+		return false
+	}
+	return reflect.DeepEqual(left, right)
 }
