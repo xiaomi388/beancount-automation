@@ -5,3 +5,4 @@ build/
 .ignore
 .vim-bookmarks
 build.sh
+.aider*
