@@ -1,0 +1,17 @@
+{
+  "accounts": [
+    {
+      "account_id": "account-1",
+      "name": "Checking",
+      "official_name": "Checking",
+      "type": "depository",
+      "subtype": "checking",
+      "mask": "0000",
+      "balances": {
+        "available": 995.01,
+        "current": 995.01,
+        "iso_currency_code": "USD"
+      }
+    }
+  ]
+}

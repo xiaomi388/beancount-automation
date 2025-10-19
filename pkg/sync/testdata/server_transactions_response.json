@@ -1,0 +1,31 @@
+{
+  "added": [
+    {
+      "account_id": "account-1",
+      "transaction_id": "txn-1",
+      "name": "Coffee Shop",
+      "amount": 4.99,
+      "iso_currency_code": "USD",
+      "unofficial_currency_code": null,
+      "pending": false,
+      "payment_channel": "in_store",
+      "date": "2024-01-15",
+      "authorized_date": "2024-01-14",
+      "location": {},
+      "payment_meta": {},
+      "personal_finance_category": {
+        "primary": "FOOD_AND_DRINK",
+        "detailed": "FOOD_AND_DRINK_FAST_FOOD"
+      },
+      "category": [
+        "Food and Drink"
+      ],
+      "category_id": "13001000"
+    }
+  ],
+  "modified": [],
+  "removed": [],
+  "next_cursor": "cursor-1",
+  "has_more": false,
+  "request_id": "test-request"
+}

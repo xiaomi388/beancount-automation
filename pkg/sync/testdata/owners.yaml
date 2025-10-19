@@ -1,0 +1,16 @@
+[
+  {
+    "name": "alice",
+    "transactionInstitutions": [
+      {
+        "institutionBase": {
+          "name": "mock-bank",
+          "accessToken": "token-123",
+          "cursor": ""
+        },
+        "transactionAccounts": []
+      }
+    ],
+    "investmentInstitutions": []
+  }
+]
