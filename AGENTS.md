@@ -1,10 +1,10 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-The CLI entry point lives in `main.go` and wires into Cobra commands under `cmd/` (e.g. `cmd/sync`, `cmd/dump`). Reusable Go logic is grouped by feature under `pkg/` (`pkg/plaidclient`, `pkg/sync`, `pkg/link`, etc.) with fixtures in sibling `testdata/` folders. Python post-processing helpers for category merging reside in `modifier/`. Runtime artifacts and sample configs are kept under `build/`; avoid checking new secrets into this directory. Copy `config.yaml.example` to your workspace and update it before running commands.
+The CLI entry point lives in `main.go` and wires into Cobra commands under `cmd/` (e.g. `cmd/sync`, `cmd/dump`). Reusable Go logic is grouped by feature under `pkg/` (`pkg/plaidclient`, `pkg/sync`, `pkg/link`, etc.) with fixtures in sibling `testdata/` folders. Python post-processing helpers for category merging reside in `modifier/`. Runtime artifacts and sample configs stay outside the tracked tree; keep local credentials there and copy `config.yaml.example` as a starting point before running commands.
 
 ## Build, Test, and Development Commands
-- `go build ./...` compiles all Go packages; use `./build.sh` to emit the `./build/bean-auto` binary used in releases.
+- `go build ./...` compiles all Go packages; use the workspace helper script to rebuild the CLI binary when needed.
 - `go run ./main.go link --owner Alice --institution "Mock Bank" --type transactions` runs the CLI without building, handy for local experiments.
 - `go fmt ./...` and `go mod tidy` keep formatting and dependencies in sync; run them before submitting changes.
 
