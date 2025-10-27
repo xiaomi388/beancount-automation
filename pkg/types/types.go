@@ -12,9 +12,54 @@ const (
 )
 
 type Config struct {
-	ClientID    string `yaml:"clientID"`
-	Secret      string `yaml:"secret"`
-	Environment string `yaml:"environment"`
+	ClientID    string            `yaml:"clientID"`
+	Secret      string            `yaml:"secret"`
+	Environment string            `yaml:"environment"`
+	Postprocess PostprocessConfig `yaml:"postprocess"`
+}
+
+type PostprocessConfig struct {
+	Merge      *MergeConfig      `yaml:"merge"`
+	Categorise *CategoriseConfig `yaml:"categorise"`
+}
+
+type MergeConfig struct {
+	Enabled      *bool `yaml:"enabled"`
+	SameOwner    *bool `yaml:"same_owner"`
+	CrossOwner   *bool `yaml:"cross_owner"`
+	MaxDaysApart *int  `yaml:"max_days_apart"`
+}
+
+type CategoriseConfig struct {
+	Enabled      *bool         `yaml:"enabled"`
+	KeywordRules []KeywordRule `yaml:"keyword_rules"`
+}
+
+type KeywordRule struct {
+	Match MatchCriteria `yaml:"match"`
+	Set   SetMutations  `yaml:"set"`
+}
+
+type MatchCriteria struct {
+	Description TextCriteria            `yaml:"description"`
+	Payee       TextCriteria            `yaml:"payee"`
+	Metadata    map[string]TextCriteria `yaml:"metadata"`
+}
+
+type TextCriteria struct {
+	Contains []string `yaml:"contains"`
+	Equals   string   `yaml:"equals"`
+}
+
+type SetMutations struct {
+	ToAccount   AccountMutation `yaml:"to_account"`
+	FromAccount AccountMutation `yaml:"from_account"`
+	Tags        []string        `yaml:"tags"`
+}
+
+type AccountMutation struct {
+	Category []string `yaml:"category"`
+	Name     string   `yaml:"name"`
 }
 
 type Owner struct {

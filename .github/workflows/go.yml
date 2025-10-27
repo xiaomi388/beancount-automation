@@ -29,7 +29,6 @@ jobs:
         goarch: ${{ matrix.goarch }}
         goversion: "https://dl.google.com/go/go1.18.linux-amd64.tar.gz"
         binary_name: "bean-auto"
-        extra_files: modifier config.yaml
+        extra_files: config.yaml
         release_tag: "latest"
         overwrite: true
-          

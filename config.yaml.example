@@ -2,3 +2,20 @@
 clientID: ""
 secret: ""
 environment: "Development" # "Development", "Sandbox", or "Production"
+
+# Optional post-processing rules applied after converting Plaid transactions.
+postprocess:
+  merge:
+    enabled: true            # disable to skip all merge heuristics
+    same_owner: true         # merge transfers between accounts owned by the same person
+    cross_owner: true        # merge transfers between different owners on matching dates
+    max_days_apart: 10       # window (days) for cross-owner matching (0 requires same day)
+  categorise:
+    enabled: false           # enable to apply keyword rules
+    keyword_rules:           # ordered rules; first match applies and stops evaluation
+      - match:               # example: match on description keywords
+          description:
+            contains: ["SampleMerchant", "SampleKeyword"]
+        set:
+          to_account:
+            category: ["Example", "Category"]

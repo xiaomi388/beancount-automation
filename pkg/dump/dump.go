@@ -156,8 +156,8 @@ func investAccountToBeanCountBalanceAccount(owner types.Owner, inst types.Instit
 	return balanceAccount
 }
 
-func dumpTransactions(owners []types.Owner, w io.Writer) error {
-	bcTxns, accounts, err := processTransactions(owners)
+func dumpTransactions(cfg types.Config, owners []types.Owner, w io.Writer) error {
+	bcTxns, accounts, err := processTransactions(owners, cfg.Postprocess)
 	if err != nil {
 		return err
 	}
@@ -169,7 +169,7 @@ func dumpTransactions(owners []types.Owner, w io.Writer) error {
 	return nil
 }
 
-func processTransactions(owners []types.Owner) ([]BeancountTransaction, map[string]Account, error) {
+func processTransactions(owners []types.Owner, postCfg types.PostprocessConfig) ([]BeancountTransaction, map[string]Account, error) {
 	var bcTxns []BeancountTransaction
 	accounts := make(map[string]Account)
 
@@ -203,10 +203,7 @@ func processTransactions(owners []types.Owner) ([]BeancountTransaction, map[stri
 		}
 	}
 
-	bcTxns, err := modify(owners, bcTxns)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to modify transactions: %w", err)
-	}
+	bcTxns = applyPostprocessTransactions(bcTxns, postCfg)
 
 	for _, bcTxn := range bcTxns {
 		accounts[bcTxn.FromAccount.ToString()] = bcTxn.FromAccount
@@ -342,6 +339,11 @@ func dumpHoldings(owners []types.Owner, w io.Writer) error {
 }
 
 func Dump() error {
+	config, err := persistence.LoadConfig(persistence.DefaultConfigPath)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
 	owners, err := persistence.LoadOwners(persistence.DefaultOwnerPath)
 	if err != nil {
 		return fmt.Errorf("failed to load owners: %w", err)
@@ -350,7 +352,7 @@ func Dump() error {
 	var buf bytes.Buffer
 	w := io.Writer(&buf)
 
-	if err := dumpTransactions(owners, w); err != nil {
+	if err := dumpTransactions(config, owners, w); err != nil {
 		return fmt.Errorf("failed to dump transactions: %w", err)
 	}
 
