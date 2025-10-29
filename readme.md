@@ -2,14 +2,25 @@
 
 Beancount-Automation fetches transactions from Plaid and produces a Beancount ledger (plus optional holdings) ready for Fava.
 
-## Workflow
+## Quick Start
 
-1. **Configure Plaid**
-   - Copy `config.yaml.example` to `config.yaml`.
-   - Fill in `clientID`, `secret`, and `environment` (`Development`, `Sandbox`, or `Production`).
-   - Optionally configure post-processing (see below).
+1. **Download the binary**
+   - Grab the archive for your operating system from the [latest release](https://github.com/xiaomi388/beancount-automation/releases/tag/latest).
 
-2. **Link a new account**
+2. **Review `config.yaml`**
+   - The release archive already includes a `config.yaml` copied from `config.yaml.example`.
+   - Update the Plaid credentials and preferred environment (`Development`, `Sandbox`, or `Production`) before running the CLI.
+
+3. **Get your Plaid client ID & secret**
+   - Sign in to the [Plaid Dashboard](https://dashboard.plaid.com/).
+   - Navigate to **Team Settings → Keys** (direct link: `https://dashboard.plaid.com/team/keys`).
+   - Copy the `client_id` and the environment-specific `secret` (Sandbox for testing, Development/Production for live data) into `config.yaml`.
+
+4. **Optional:** Update the `postprocess` section in `config.yaml` to tweak transfer merging or categorisation rules (see below).
+
+## Everyday Workflow
+
+1. **Link a new account**
 
    ```bash
    ./bean-auto link --owner <OwnerName> --institution <InstitutionName> --type <transactions|investments>
@@ -17,7 +28,7 @@ Beancount-Automation fetches transactions from Plaid and produces a Beancount le
 
    Owner/institution values are free-form labels used inside Beancount. Use `transactions` for checking/credit, `investments` for brokerage. The CLI launches Plaid Link in your browser; once you complete the flow the browser auto-sends the token back to the CLI (no manual copy/paste required). Leave the browser tab open until you see a success message.
 
-3. **Sync transactions**
+2. **Sync transactions**
 
    ```bash
    ./bean-auto sync
@@ -25,7 +36,7 @@ Beancount-Automation fetches transactions from Plaid and produces a Beancount le
 
    Pulls the latest transactions (and investment data if enabled) from Plaid into `owners.yaml`.
 
-4. **Dump to Beancount**
+3. **Dump to Beancount**
 
    ```bash
    ./bean-auto dump
