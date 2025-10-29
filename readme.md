@@ -62,7 +62,3 @@ postprocess:
             category: ["Recreation", "ArtsandEntertainment"]
       # ... additional rules as needed
 ```
-
-## Notes
-
-- `config.yaml` contains Plaid credentials—keep it out of version control and share carefully.
