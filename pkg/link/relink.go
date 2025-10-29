@@ -51,8 +51,8 @@ func Relink(ownerName string, instName string, instType types.InstitutionType) e
 		return fmt.Errorf("failed to create link token: %w", err)
 	}
 
-	if err := generateAuthPage(linkToken); err != nil {
-		return fmt.Errorf("failed to generate auth page: %w", err)
+	if _, err := launchLinkFlow(ctx, linkToken); err != nil {
+		return fmt.Errorf("failed to launch link flow: %w", err)
 	}
 
 	return nil

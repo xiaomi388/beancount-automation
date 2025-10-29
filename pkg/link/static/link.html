@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Plaid Link</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: sans-serif; margin: 40px; background: #f7f7f7; }
+    .container { max-width: 480px; margin: auto; background: #fff; padding: 32px; border-radius: 12px; box-shadow: 0 8px 24px rgba(15,23,42,0.08); }
+    h1 { font-size: 1.45rem; margin-bottom: 8px; color: #1f2933; }
+    p { color: #475569; line-height: 1.5; }
+    button { background: #2563eb; color: white; border: none; border-radius: 8px; padding: 12px 18px; font-size: 1rem; cursor: pointer; }
+    button:disabled { background: #94a3b8; cursor: wait; }
+    .status { margin-top: 16px; padding: 12px; border-radius: 8px; display: none; }
+    .status.success { background: #ecfdf3; color: #047857; display: block; }
+    .status.error { background: #fef2f2; color: #b91c1c; display: block; }
+  </style>
+  <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>Connect your institution</h1>
+    <p>
+      When you press the button below, Plaid Link will open in a new window.
+      Follow the prompts to sign in to your institution. Once complete, you will be returned here while we finish connecting to the CLI.
+    </p>
+    <button id="linkButton">Open Plaid Link</button>
+    <div id="status" class="status"></div>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const buttonEl = document.getElementById('linkButton');
+
+    function setStatus(message, type) {
+      statusEl.textContent = message;
+      statusEl.className = 'status ' + type;
+    }
+
+    async function postToken(token) {
+      try {
+        const response = await fetch('/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ public_token: token })
+        });
+
+        if (!response.ok) {
+          throw new Error('Server responded with ' + response.status);
+        }
+
+        setStatus('Connection established. Return to the CLI to continue.', 'success');
+      } catch (err) {
+        console.error(err);
+        setStatus('Unable to reach the CLI. Please copy the public_token below and paste it manually: ' + token, 'error');
+        buttonEl.disabled = false;
+      }
+    }
+
+    function initializePlaid(linkToken) {
+      const linkHandler = Plaid.create({
+        token: linkToken,
+        onSuccess: function(public_token, metadata) {
+          setStatus('Finishing connection…', 'success');
+          postToken(public_token);
+        },
+        onExit: function(err, metadata) {
+          buttonEl.disabled = false;
+          if (err) {
+            setStatus('Link exited: ' + err.display_message || err.error_message, 'error');
+          }
+        }
+      });
+
+      buttonEl.addEventListener('click', function() {
+        buttonEl.disabled = true;
+        setStatus('Opening Plaid Link…', 'success');
+        linkHandler.open();
+      });
+    }
+
+    async function bootstrap() {
+      try {
+        const res = await fetch('/link-token');
+        if (!res.ok) {
+          throw new Error('Failed to fetch link token');
+        }
+        const { link_token } = await res.json();
+        initializePlaid(link_token);
+      } catch (err) {
+        console.error(err);
+        setStatus('Unable to load Plaid Link. See console for details.', 'error');
+        buttonEl.disabled = true;
+      }
+    }
+
+    bootstrap();
+  </script>
+</body>
+</html>

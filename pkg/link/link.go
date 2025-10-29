@@ -62,13 +62,9 @@ func getAccessToken(clientID string, secret string, env string, product *plaid.P
 		return "", fmt.Errorf("failed to create link token: %w", err)
 	}
 
-	if err := generateAuthPage(linkToken); err != nil {
-		return "", fmt.Errorf("failed to generate auth page: %w", err)
-	}
-
-	publicToken, err := readPublicToken()
+	publicToken, err := launchLinkFlow(ctx, linkToken)
 	if err != nil {
-		return "", fmt.Errorf("failed to read public token: %w", err)
+		return "", fmt.Errorf("failed to obtain public token: %w", err)
 	}
 
 	accessToken, err := exchangeAccessToken(ctx, c, publicToken)

@@ -15,7 +15,7 @@ Beancount-Automation fetches transactions from Plaid and produces a Beancount le
    ./bean-auto link --owner <OwnerName> --institution <InstitutionName> --type <transactions|investments>
    ```
 
-   Owner/institution values are free-form labels used inside Beancount. Use `transactions` for checking/credit, `investments` for brokerage.
+   Owner/institution values are free-form labels used inside Beancount. Use `transactions` for checking/credit, `investments` for brokerage. The CLI launches Plaid Link in your browser; once you complete the flow the browser auto-sends the token back to the CLI (no manual copy/paste required). Leave the browser tab open until you see a success message.
 
 3. **Sync transactions**
 

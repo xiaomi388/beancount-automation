@@ -3,42 +3,38 @@ package link
 import (
 	"bufio"
 	"context"
-	_ "embed"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
-	"text/template"
+	"time"
 
 	"github.com/plaid/plaid-go/plaid"
 	"github.com/sirupsen/logrus"
 )
 
-//go:embed link.html.tpl
-var linkHTML string
-
-func generateAuthPage(linkToken string) error {
-	tmpl, err := template.New("link.yaml").Parse(linkHTML)
-	if err != nil {
-		return fmt.Errorf("failed to generate template: %w", err)
+func displayLinkPage(linkURL string) error {
+	cmd := exec.Command("open", linkURL)
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to open link page: %w", err)
 	}
-
-	tmpFile, err := os.CreateTemp("", "*.html")
-	if err != nil {
-		return fmt.Errorf("failed to create tmp file: %w", err)
-
-	}
-
-	data := struct{ LinkToken string }{linkToken}
-	if err := tmpl.Execute(tmpFile, data); err != nil {
-		return fmt.Errorf("failed to execute template: %w", err)
-	}
-
-	if err := exec.Command("open", tmpFile.Name()).Run(); err != nil {
-		return fmt.Errorf("failed to open generated auth page: %w", err)
-	}
-
 	return nil
+}
+
+func waitForToken(ctx context.Context, ts *tokenServer) (string, error) {
+	token, err := ts.waitForToken(ctx)
+	if err == nil && token != "" {
+		return token, nil
+	}
+
+	fmt.Print("Enter public token: ")
+	reader := bufio.NewReader(os.Stdin)
+	text, err := reader.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(text), nil
 }
 
 func exchangeAccessToken(ctx context.Context, c *plaid.APIClient, publicToken string) (string, error) {
@@ -50,18 +46,6 @@ func exchangeAccessToken(ctx context.Context, c *plaid.APIClient, publicToken st
 	}
 
 	return exchangePublicTokenResp.GetAccessToken(), nil
-}
-
-func readPublicToken() (string, error) {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Enter publc token: ")
-	text, err := reader.ReadString('\n')
-	text = strings.ReplaceAll(text, "\n", "")
-	if err != nil {
-		return "", err
-	}
-
-	return text, nil
 }
 
 func createLinkToken(ctx context.Context, c *plaid.APIClient, pd *plaid.Products, accessToken *string) (string, error) {
@@ -90,4 +74,31 @@ func createLinkToken(ctx context.Context, c *plaid.APIClient, pd *plaid.Products
 
 	linkToken := resp.GetLinkToken()
 	return linkToken, nil
+}
+
+func launchLinkFlow(ctx context.Context, linkToken string) (string, error) {
+	ts := newTokenServer(linkToken)
+	linkURL, err := ts.start(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	if err := displayLinkPage(linkURL); err != nil {
+		return "", err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	token, err := waitForToken(ctx, ts)
+	ts.shutdown(context.Background())
+	if err != nil {
+		return "", err
+	}
+
+	if token == "" {
+		return "", errors.New("empty public token")
+	}
+
+	return token, nil
 }
