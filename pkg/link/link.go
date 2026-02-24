@@ -20,7 +20,13 @@ func Link(ownerName string, instName string, instType types.InstitutionType) err
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	owners, err := persistence.LoadOwners(persistence.DefaultOwnerPath)
+	store, err := persistence.NewStore(config.Storage)
+	if err != nil {
+		return fmt.Errorf("failed to create store: %w", err)
+	}
+	defer store.Close()
+
+	owners, err := store.LoadOwners()
 	if err != nil {
 		return fmt.Errorf("failed to load owners: %w", err)
 	}
@@ -47,7 +53,7 @@ func Link(ownerName string, instName string, instType types.InstitutionType) err
 
 	owners = types.CreateOrUpdateOwner(owners, owner)
 
-	if err := persistence.DumpOwners(persistence.DefaultOwnerPath, owners); err != nil {
+	if err := store.DumpOwners(owners); err != nil {
 		return fmt.Errorf("failed to dump owners: %w", err)
 	}
 

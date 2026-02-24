@@ -3,6 +3,13 @@ clientID: ""
 secret: ""
 environment: "Development" # "Development", "Sandbox", or "Production"
 
+# Storage backend for owner data. Default is "json" (the original owners.yaml).
+# Set to "sqlite" for better performance with large transaction volumes.
+# After changing, run: bean-auto migrate --from json --to sqlite
+storage:
+  backend: json              # "json" or "sqlite"
+  # path: ./owners.yaml      # optional; defaults to ./owners.yaml for json, ./owners.db for sqlite
+
 # Optional post-processing rules applied after converting Plaid transactions.
 postprocess:
   merge:

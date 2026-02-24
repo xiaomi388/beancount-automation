@@ -16,6 +16,12 @@ type Config struct {
 	Secret      string            `yaml:"secret"`
 	Environment string            `yaml:"environment"`
 	Postprocess PostprocessConfig `yaml:"postprocess"`
+	Storage     StorageConfig     `yaml:"storage"`
+}
+
+type StorageConfig struct {
+	Backend string `yaml:"backend"` // "json" or "sqlite", default "sqlite"
+	Path    string `yaml:"path"`    // file path; defaults to "./owners.yaml" for json, "./owners.db" for sqlite
 }
 
 type PostprocessConfig struct {
