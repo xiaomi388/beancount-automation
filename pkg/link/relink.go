@@ -15,7 +15,13 @@ func Relink(ownerName string, instName string, instType types.InstitutionType) e
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	owners, err := persistence.LoadOwners(persistence.DefaultOwnerPath)
+	store, err := persistence.NewStore(config.Storage)
+	if err != nil {
+		return fmt.Errorf("failed to create store: %w", err)
+	}
+	defer store.Close()
+
+	owners, err := store.LoadOwners()
 	if err != nil {
 		return fmt.Errorf("failed to load owners: %w", err)
 	}

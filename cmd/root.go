@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/xiaomi388/beancount-automation/cmd/dump"
 	"github.com/xiaomi388/beancount-automation/cmd/link"
+	"github.com/xiaomi388/beancount-automation/cmd/migrate"
 	"github.com/xiaomi388/beancount-automation/cmd/relink"
 	"github.com/xiaomi388/beancount-automation/cmd/sync"
 )
@@ -58,5 +59,6 @@ func init() {
 	rootCmd.AddCommand(sync.SyncCmd)
 	rootCmd.AddCommand(link.LinkCmd)
 	rootCmd.AddCommand(relink.RelinkCmd)
+	rootCmd.AddCommand(migrate.MigrateCmd)
 
 }

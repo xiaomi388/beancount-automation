@@ -34,7 +34,13 @@ func Sync() error {
 
 	cli := plaidclient.New(cfg.ClientID, cfg.Secret, cfg.Environment)
 
-	owners, err := persistence.LoadOwners(persistence.DefaultOwnerPath)
+	store, err := persistence.NewStore(cfg.Storage)
+	if err != nil {
+		return fmt.Errorf("failed to create store: %w", err)
+	}
+	defer store.Close()
+
+	owners, err := store.LoadOwners()
 	if err != nil {
 		return fmt.Errorf("failed to load owners: %w", err)
 	}
@@ -68,10 +74,10 @@ func Sync() error {
 		types.CreateOrUpdateOwner(owners, owner)
 	}
 
-	if err := persistence.DumpOwners(persistence.DefaultOwnerPath, owners); err != nil {
+	if err := store.DumpOwners(owners); err != nil {
 		return fmt.Errorf("failed to dump owners: %w", err)
 	}
-	fmt.Printf("Successfully synced all data to %q.\n", persistence.DefaultOwnerPath)
+	fmt.Println("Successfully synced all data.")
 	return nil
 }
 
