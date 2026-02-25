@@ -215,6 +215,53 @@ UPDATE_SYNC_GOLDEN=1 go test ./pkg/sync/...
 
 ---
 
+## Feature Development Flow
+
+**Never push directly to `master`.** All changes must go through a feature branch and pull request.
+
+### Steps for every change
+
+1. **Create a branch** off `master` with a short descriptive name:
+   ```bash
+   git checkout master
+   git pull origin master
+   git checkout -b feat/<short-description>
+   ```
+   Use prefixes to signal intent:
+   | Prefix | Use for |
+   |--------|---------|
+   | `feat/` | new functionality |
+   | `fix/` | bug fixes |
+   | `refactor/` | code restructuring without behaviour change |
+   | `docs/` | documentation-only changes |
+   | `chore/` | tooling, CI, dependency updates |
+
+2. **Develop and commit** with clear, descriptive messages:
+   ```bash
+   git add <files>
+   git commit -m "feat: short summary of what and why"
+   ```
+
+3. **Run tests** before pushing:
+   ```bash
+   go test ./...
+   ```
+
+4. **Push the branch** and open a PR against `master`:
+   ```bash
+   git push -u origin feat/<short-description>
+   gh pr create --base master --title "feat: ..." --body "..."
+   ```
+
+5. **Merge via PR** only — squash or merge commit, never force-push to `master`.
+
+### Rules
+- `master` must always be in a releasable state.
+- PRs require passing CI (the `release` workflow builds all targets).
+- Delete the feature branch after the PR is merged.
+
+---
+
 ## Code Conventions
 
 - **Error handling:** always wrap errors with `fmt.Errorf("context: %w", err)`. Propagate errors up; only `os.Exit(1)` at the `cmd/` layer.
