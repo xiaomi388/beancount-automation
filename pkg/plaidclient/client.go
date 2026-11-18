@@ -1,6 +1,10 @@
 package plaidclient
 
-import "github.com/plaid/plaid-go/plaid"
+import (
+	"net/http"
+
+	"github.com/plaid/plaid-go/plaid"
+)
 
 var environments = map[string]plaid.Environment{
 	"Development": plaid.Development,
@@ -28,5 +32,6 @@ func New(clientID, secret, env string) *plaid.APIClient {
 	} else {
 		pcfg.UseEnvironment(plaid.Environment(env))
 	}
+	pcfg.HTTPClient = &http.Client{Transport: sanitizeTransport{base: http.DefaultTransport}}
 	return plaid.NewAPIClient(pcfg)
 }
