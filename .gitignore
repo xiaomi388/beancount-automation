@@ -6,3 +6,11 @@ build/
 .vim-bookmarks
 build.sh
 .aider*
+
+# local data and secrets (never commit)
+config.yaml
+owners.yaml
+owners.yaml.bak*
+owners.db*
+*.beancount
+!pkg/**/testdata/**
