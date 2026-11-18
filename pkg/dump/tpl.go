@@ -5,16 +5,17 @@ const transactionTemplate = `
     {{ range $k, $v := .Metadata -}}
     {{ $k }}:"{{ $v }}"
     {{ end -}}
-    {{ .ToAccount.ToString }} {{ .Amount }} {{ .Unit }}
-    {{ .FromAccount.ToString }}
+    {{ if .Postings }}{{ range $i, $p := .Postings }}{{ if $i }}
+    {{ end }}{{ $p }}{{ end }}{{ else }}{{ .ToAccount.ToString }} {{ .Amount }} {{ .Unit }}
+    {{ .FromAccount.ToString }}{{ end }}
 `
 
 const openAccountTemplate = `
 2000-01-01 open Equity:OpenBalance
-{{ range $name, $account := . }}2000-01-01 open {{ $name }}
-{{ if eq $account.Type "Assets"}}
-{{ if $account.FirstTransactionDate }}{{ $account.FirstTransactionDate }}{{ else }}2022-01-01{{ end }} pad {{ $name }} Equity:OpenBalance
-2999-01-01 balance {{ $name }} {{ $account.Balance }} USD
+{{ range $name, $account := . }}{{ if ne $name "Equity:OpenBalance" }}2000-01-01 open {{ $name }}{{ if $account.Booking }} "{{ $account.Booking }}"{{ end }}
+{{ end }}{{ if eq $account.Type "Assets"}}
+{{ if not $account.NoPad }}{{ if $account.FirstTransactionDate }}{{ $account.FirstTransactionDate }}{{ else }}2022-01-01{{ end }} pad {{ $name }} Equity:OpenBalance
+{{ end }}2999-01-01 balance {{ $name }} {{ $account.Balance }} USD
 {{ end }}
 {{ end }}
 `
