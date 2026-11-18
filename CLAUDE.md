@@ -165,7 +165,9 @@ Special characters (non-alphanumeric) are stripped from all name components via 
 1. **Merge** — detects transfer pairs (same amount + currency; `Assets`→`Assets`/`Liabilities`) and collapses them:
    - Same-owner transfers: both legs replaced by a single entry.
    - Cross-owner transfers: matched within `max_days_apart` days.
-2. **Categorise** — applies ordered `keyword_rules` to override `ToAccount`/`FromAccount` categories or add tags.
+2. **Categorise** — applies ordered `keyword_rules` to override `ToAccount`/`FromAccount` categories, switch an Income/Expenses account to the other side (`type`), or add tags.
+
+Money coming back to a **credit card** that is not a payment, transfer or interest (merchant refunds, statement credits such as hotel or dining credits, offers) is booked as a negative `Expenses:` entry in its category, so it reduces spending instead of counting as income. Inflows to depository accounts stay `Income`.
 
 ---
 

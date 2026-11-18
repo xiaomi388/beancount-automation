@@ -26,3 +26,8 @@ postprocess:
         set:
           to_account:
             category: ["Example", "Category"]
+          # to_account / from_account also accept `type: Income|Expenses` to
+          # move the category account to the other side (asset and liability
+          # accounts are never changed). Example: book a cashback as income.
+          # from_account:
+          #   type: Income

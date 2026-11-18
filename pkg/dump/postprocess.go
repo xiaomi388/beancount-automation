@@ -299,6 +299,9 @@ func applyMutations(txn BeancountTransaction, set types.SetMutations) BeancountT
 		txn.Tags = append([]string(nil), set.Tags...)
 	}
 
+	txn.ToAccount = applyAccountType(txn.ToAccount, set.ToAccount.Type)
+	txn.FromAccount = applyAccountType(txn.FromAccount, set.FromAccount.Type)
+
 	if len(set.ToAccount.Category) > 0 {
 		txn.ToAccount.Category = append([]string(nil), set.ToAccount.Category...)
 	}
@@ -314,6 +317,17 @@ func applyMutations(txn BeancountTransaction, set types.SetMutations) BeancountT
 	}
 
 	return txn
+}
+
+// applyAccountType moves an Income/Expenses account to the requested side.
+func applyAccountType(a Account, typ string) Account {
+	if typ != "Income" && typ != "Expenses" {
+		return a
+	}
+	if a.Type == "Income" || a.Type == "Expenses" {
+		a.Type = typ
+	}
+	return a
 }
 
 func copyStrings(src []string) []string {
