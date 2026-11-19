@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"text/template"
 	"time"
@@ -26,9 +27,18 @@ type Account struct {
 	Category             []string `json:"category"`
 	Balance              float32  `json:"balance"`
 	FirstTransactionDate string   `json:"first_transaction_date"`
+	// Booking is an optional Beancount booking method for the open directive
+	// (e.g. "FIFO" for accounts holding lots at cost).
+	Booking string `json:"booking,omitempty"`
+	// NoPad skips the pad directive when transactions already reconcile to
+	// Balance; Beancount reports an unused pad as an error.
+	NoPad bool `json:"no_pad,omitempty"`
 }
 
 func (a Account) ToString() string {
+	if a.Type == "Equity" {
+		return "Equity:" + strings.Join(a.Category, ":")
+	}
 	if a.Type == "Expenses" || a.Type == "Income" {
 		return fmt.Sprintf("%s:%s:%s", a.Type, a.Country, strings.Join(a.Category, ":"))
 
@@ -57,6 +67,9 @@ type BeancountTransaction struct {
 	FromAccount Account           `json:"from_account"`
 	Amount      float32           `json:"amount"`
 	Unit        string            `json:"unit"`
+	// Postings, when set, are written verbatim instead of the To/From pair.
+	// Used for entries with commodities at cost (stock plan accounts).
+	Postings []string `json:"postings,omitempty"`
 }
 
 func investTxnToChangeAccount(account types.InvestmentAccount, txn plaid.InvestmentTransaction) Account {
@@ -69,8 +82,21 @@ func investTxnToChangeAccount(account types.InvestmentAccount, txn plaid.Investm
 	return Account{
 		Type:     typ,
 		Country:  account.AccoutBase.Balances.GetIsoCurrencyCode(),
-		Category: []string{strings.Title(txn.Type), strings.Title(txn.Subtype)},
+		Category: sanitizeCategories(strings.Title(txn.Type), strings.Title(txn.Subtype)),
 	}
+}
+
+func sanitizeCategories(parts ...string) []string {
+	re := regexp.MustCompile(`[^a-zA-Z0-9]`)
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = string(re.ReplaceAll([]byte(p), nil))
+		if p == "" {
+			p = "Unknown"
+		}
+		out = append(out, p)
+	}
+	return out
 }
 
 func txnToChangeAccount(account types.TransactionAccount, txn plaid.Transaction) Account {
@@ -147,7 +173,7 @@ func investAccountToBeanCountBalanceAccount(owner types.Owner, inst types.Instit
 		Balance:          account.AccoutBase.Balances.GetCurrent(),
 	}
 
-	for _, txn := range account.Transactions {
+	for _, txn := range accountInvestTxns(account) {
 		if leftDateBeforeRightDate(txn.Date, balanceAccount.FirstTransactionDate) {
 			balanceAccount.FirstTransactionDate = txn.Date
 		}
@@ -157,20 +183,35 @@ func investAccountToBeanCountBalanceAccount(owner types.Owner, inst types.Instit
 }
 
 func dumpTransactions(cfg types.Config, owners []types.Owner, w io.Writer) error {
-	bcTxns, accounts, err := processTransactions(owners, cfg.Postprocess)
+	prices, err := LoadPriceBook(cfg.StockPlan.PricesFile)
 	if err != nil {
 		return err
 	}
 
-	if err := writeTransactions(w, bcTxns, accounts); err != nil {
+	res, err := processTransactions(owners, cfg.Postprocess, prices, time.Now().Format("2006-01-02"))
+	if err != nil {
 		return err
 	}
 
-	return nil
+	if err := writeTransactions(w, res.Transactions, res.Accounts); err != nil {
+		return err
+	}
+
+	return writeStockPlanDirectives(w, res.Prices, res.Balances)
 }
 
-func processTransactions(owners []types.Owner, postCfg types.PostprocessConfig) ([]BeancountTransaction, map[string]Account, error) {
+type processResult struct {
+	Transactions []BeancountTransaction
+	Accounts     map[string]Account
+	Prices       []priceDirective
+	Balances     []unitBalance
+}
+
+func processTransactions(owners []types.Owner, postCfg types.PostprocessConfig, prices PriceBook, today string) (processResult, error) {
 	var bcTxns []BeancountTransaction
+	var stockPlanTxns []BeancountTransaction
+	var priceDirs []priceDirective
+	var unitBals []unitBalance
 	accounts := make(map[string]Account)
 
 	for _, owner := range owners {
@@ -191,8 +232,21 @@ func processTransactions(owners []types.Owner, postCfg types.PostprocessConfig) 
 		for _, inst := range owner.InvestmentInstitutions {
 			for _, account := range inst.InvestmentAccounts {
 				balanceAccount := investAccountToBeanCountBalanceAccount(owner, inst.InstitutionBase, account)
+				if isStockPlanAccount(account) {
+					balanceAccount.Balance = stockPlanCash(account)
+					balanceAccount.Booking = "FIFO"
+					accounts[balanceAccount.ToString()] = balanceAccount
+					sp := processStockPlanAccount(owner, account, balanceAccount, prices, today)
+					stockPlanTxns = append(stockPlanTxns, sp.Transactions...)
+					for _, a := range sp.Accounts {
+						accounts[a.ToString()] = a
+					}
+					priceDirs = append(priceDirs, sp.Prices...)
+					unitBals = append(unitBals, sp.Balances...)
+					continue
+				}
 				accounts[balanceAccount.ToString()] = balanceAccount
-				for _, txn := range account.Transactions {
+				for _, txn := range accountInvestTxns(account) {
 					changeAccount := investTxnToChangeAccount(account, txn)
 					accounts[changeAccount.ToString()] = changeAccount
 
@@ -210,7 +264,90 @@ func processTransactions(owners []types.Owner, postCfg types.PostprocessConfig) 
 		accounts[bcTxn.ToAccount.ToString()] = bcTxn.ToAccount
 	}
 
-	return bcTxns, accounts, nil
+	// Stock plan entries carry their own postings and skip transfer merging.
+	bcTxns = append(bcTxns, stockPlanTxns...)
+
+	markReconciledAccounts(accounts, bcTxns)
+
+	return processResult{
+		Transactions: bcTxns,
+		Accounts:     accounts,
+		Prices:       dedupePrices(priceDirs),
+		Balances:     unitBals,
+	}, nil
+}
+
+// markReconciledAccounts sets NoPad on asset accounts whose USD postings
+// already sum to the asserted balance (only To/From style entries count).
+func markReconciledAccounts(accounts map[string]Account, txns []BeancountTransaction) {
+	sums := map[string]float64{}
+	touched := map[string]bool{}
+	for _, t := range txns {
+		if len(t.Postings) > 0 {
+			for name := range accounts {
+				for _, p := range t.Postings {
+					if strings.HasPrefix(p, name+" ") || p == name {
+						touched[name] = true // has cost/unit postings; leave padding alone
+					}
+				}
+			}
+			continue
+		}
+		if t.Unit != "USD" {
+			continue
+		}
+		sums[t.ToAccount.ToString()] += float64(t.Amount)
+		sums[t.FromAccount.ToString()] -= float64(t.Amount)
+	}
+	for name, a := range accounts {
+		if a.Type != "Assets" || touched[name] {
+			continue
+		}
+		if s, ok := sums[name]; ok && math.Abs(s-float64(a.Balance)) < 0.005 {
+			a.NoPad = true
+			accounts[name] = a
+		}
+	}
+}
+
+func dedupePrices(in []priceDirective) []priceDirective {
+	seen := map[string]bool{}
+	out := make([]priceDirective, 0, len(in))
+	for _, p := range in {
+		k := p.Date + " " + p.Symbol
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		out = append(out, p)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Symbol != out[j].Symbol {
+			return out[i].Symbol < out[j].Symbol
+		}
+		return out[i].Date < out[j].Date
+	})
+	return out
+}
+
+func writeStockPlanDirectives(w io.Writer, prices []priceDirective, balances []unitBalance) error {
+	if len(prices) == 0 && len(balances) == 0 {
+		return nil
+	}
+	if _, err := fmt.Fprintln(w); err != nil {
+		return err
+	}
+	for _, p := range prices {
+		if _, err := fmt.Fprintf(w, "%s price %s %s USD\n", p.Date, p.Symbol, p.Price); err != nil {
+			return err
+		}
+	}
+	for _, b := range balances {
+		if _, err := fmt.Fprintf(w, "2999-01-01 balance %s %s %s\n", b.Account, b.Amount, b.Symbol); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func deriveInvestTxnAmount(account types.InvestmentAccount, txn plaid.InvestmentTransaction) float32 {

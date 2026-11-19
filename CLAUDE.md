@@ -161,6 +161,30 @@ The `dump` package converts Plaid data to `BeancountTransaction` structs and ren
 
 Special characters (non-alphanumeric) are stripped from all name components via regex.
 
+**Stock plan (RSU) accounts** (`pkg/dump/stockplan.go`, `pkg/dump/prices.go`):
+
+Investment accounts with Plaid subtype `stock plan` are rendered with shares as a
+commodity instead of USD. Plaid reports a vest as quantity = shares, price 1,
+amount 0, and puts a dividend's dollar amount in `quantity` too.
+
+- Vest (`quantity > 0`, `amount == 0`): `N SYM {FMV USD}` against
+  `Income:USD:Compensation:RSU:SYM`. FMV comes from `stockPlan.pricesFile`
+  (default `./prices.csv`, columns `date,symbol,price[,source]`, latest row on or
+  before the date; a later row for the same date wins). No price: income is
+  booked in shares and the entry gets `fmv:"missing"`.
+- Cash and fee types are cash movements (sign: Plaid `amount < 0` = cash in).
+- Sell: `-N SYM {} @ price`, cash proceeds, gains to `Income:USD:CapitalGains:SYM`.
+  The account opens with `"FIFO"` booking.
+- Shares held but not explained by Plaid's (24-month) history get an opening lot
+  dated the day before the first transaction, `basis:"placeholder"`.
+- Emits `price` directives (holdings + prices file) and a `balance` assertion per
+  symbol; the USD balance assertion is the cash holding only.
+- `scripts/fetch_prices.py OWNERS_JSON PRICES_CSV` fills vest-date closes from
+  Yahoo Finance (`source=yahoo-close`) and never overwrites other sources.
+
+Investment transactions are filtered by `account_id` in dump: sync stores every
+transaction of an Item on every account of that Item.
+
 **Post-processing pipeline** (`pkg/dump/postprocess.go`):
 1. **Merge** — detects transfer pairs (same amount + currency; `Assets`→`Assets`/`Liabilities`) and collapses them:
    - Same-owner transfers: both legs replaced by a single entry.
@@ -277,6 +301,12 @@ UPDATE_SYNC_GOLDEN=1 go test ./pkg/sync/...
 ## Known Issues / Notes
 
 - `dumpHoldings()` in `pkg/dump/dump.go` is intentionally commented out (holdings output is incomplete).
+- Non stock plan investment accounts are still modelled in USD only and the cash sign
+  is reversed (`amount < 0` is treated as money out, so dividends land in
+  `Expenses:...:Dividend`). Final balances are right only because of the pad entry.
+- Sync assigns all of an Item's investment transactions to every account; dump
+  filters by `account_id` (see `accountInvestTxns`).
+- `investments/transactions/get` is called without pagination (first 100 only).
 - `strings.Title` is used in the dump package but is deprecated in newer Go versions (no functional issue currently).
 - The `AccoutBase` field name is a typo (`Accout` not `Account`) that is preserved across the codebase for backwards compatibility with existing JSON data.
 - Investment transaction syncing fetches a fixed date range (`2020-01-01` to `2999-01-01`) — cursor-based pagination is not yet used for investments.
