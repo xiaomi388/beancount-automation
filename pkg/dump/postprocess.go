@@ -1,6 +1,8 @@
 package dump
 
 import (
+	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -86,11 +88,15 @@ func mergeTransactions(transactions []BeancountTransaction, opts mergeOptions) [
 		return transactions
 	}
 
+	// Plaid data comes from maps, so input order is random. Sort first and
+	// pair each outflow with the closest-dated inflow so output is stable.
+	transactions = sortedTransactions(transactions)
+
 	merged := make([]BeancountTransaction, 0, len(transactions))
 	processed := make(map[int]bool, len(transactions))
 
 	if opts.sameOwner {
-		mergedSelf := mergeSelfTransfers(transactions, processed)
+		mergedSelf := mergeSelfTransfers(transactions, processed, opts)
 		merged = append(merged, mergedSelf...)
 	}
 
@@ -108,89 +114,138 @@ func mergeTransactions(transactions []BeancountTransaction, opts mergeOptions) [
 	return merged
 }
 
-func mergeSelfTransfers(transactions []BeancountTransaction, processed map[int]bool) []BeancountTransaction {
-	result := make([]BeancountTransaction, 0)
+func txnID(t BeancountTransaction) string {
+	if t.Metadata == nil {
+		return ""
+	}
+	return t.Metadata["id"]
+}
 
-	for i, fromTxn := range transactions {
-		if processed[i] || fromTxn.FromAccount.Type != "Assets" {
+func sortedTransactions(in []BeancountTransaction) []BeancountTransaction {
+	out := make([]BeancountTransaction, len(in))
+	copy(out, in)
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Date != out[j].Date {
+			return out[i].Date < out[j].Date
+		}
+		return txnID(out[i]) < txnID(out[j])
+	})
+	return out
+}
+
+type transferPair struct {
+	from, to  int
+	days      int
+	nameMatch bool
+}
+
+// pairTransfers matches outflows (from an Assets account) with inflows using
+// accept, then assigns pairs globally: smallest date gap first, then pairs
+// whose descriptions name the other side's institution, then date and id.
+// Greedy per-outflow matching paired recurring same-amount payments (rent and
+// a savings transfer on the same day) with the wrong inflow.
+func pairTransfers(transactions []BeancountTransaction, processed map[int]bool, maxDays int, accept func(from, to BeancountTransaction) bool) []transferPair {
+	var cands []transferPair
+	for i, from := range transactions {
+		if processed[i] || from.FromAccount.Type != "Assets" {
 			continue
 		}
-
-		for j, toTxn := range transactions {
-			if processed[j] || j == i {
+		for j, to := range transactions {
+			if processed[j] || j == i || !unitsMatch(from, to) || from.Amount != to.Amount {
 				continue
 			}
-
-			if !unitsMatch(fromTxn, toTxn) || fromTxn.Amount != toTxn.Amount {
+			if !accept(from, to) {
 				continue
 			}
-
-			if toTxn.ToAccount.Type != "Assets" && toTxn.ToAccount.Type != "Liabilities" {
+			d := daysApart(from.Date, to.Date)
+			if maxDays >= 0 && d > maxDays {
 				continue
 			}
-
-			if fromTxn.FromAccount.Owner != toTxn.ToAccount.Owner {
-				continue
-			}
-
-			var mergedTxn BeancountTransaction
-
-			if fromTxn.FromAccount.ToString() == toTxn.ToAccount.ToString() {
-				mergedTxn = createSameAccountTransfer(fromTxn, toTxn)
-			} else {
-				mergedTxn = createMergedTransaction(fromTxn, toTxn, "self transfer")
-			}
-
-			result = append(result, mergedTxn)
-			processed[i] = true
-			processed[j] = true
-			break
+			cands = append(cands, transferPair{from: i, to: j, days: d, nameMatch: mentionsCounterparty(from, to)})
 		}
 	}
+	sort.SliceStable(cands, func(a, b int) bool {
+		x, y := cands[a], cands[b]
+		if x.days != y.days {
+			return x.days < y.days
+		}
+		if x.nameMatch != y.nameMatch {
+			return x.nameMatch
+		}
+		if transactions[x.from].Date != transactions[y.from].Date {
+			return transactions[x.from].Date < transactions[y.from].Date
+		}
+		if x.from != y.from {
+			return x.from < y.from
+		}
+		return x.to < y.to
+	})
+	var out []transferPair
+	for _, c := range cands {
+		if processed[c.from] || processed[c.to] {
+			continue
+		}
+		processed[c.from] = true
+		processed[c.to] = true
+		out = append(out, c)
+	}
+	sort.SliceStable(out, func(a, b int) bool { return out[a].from < out[b].from })
+	return out
+}
 
+func mentionsCounterparty(from, to BeancountTransaction) bool {
+	norm := func(s string) string { return strings.ToLower(s) }
+	toInst, fromInst := norm(to.ToAccount.Institution), norm(from.FromAccount.Institution)
+	return (toInst != "" && strings.Contains(norm(from.Desc), toInst)) ||
+		(fromInst != "" && strings.Contains(norm(to.Desc), fromInst))
+}
+
+func daysApart(a, b string) int {
+	layout := "2006-01-02"
+	at, errA := time.Parse(layout, a)
+	bt, errB := time.Parse(layout, b)
+	if errA != nil || errB != nil {
+		if a == b {
+			return 0
+		}
+		return math.MaxInt32
+	}
+	d := at.Sub(bt).Hours() / 24
+	if d < 0 {
+		d = -d
+	}
+	return int(d)
+}
+
+func mergeSelfTransfers(transactions []BeancountTransaction, processed map[int]bool, opts mergeOptions) []BeancountTransaction {
+	result := make([]BeancountTransaction, 0)
+	pairs := pairTransfers(transactions, processed, opts.maxDaysApart, func(from, to BeancountTransaction) bool {
+		if to.ToAccount.Type != "Assets" && to.ToAccount.Type != "Liabilities" {
+			return false
+		}
+		return from.FromAccount.Owner == to.ToAccount.Owner
+	})
+	for _, p := range pairs {
+		fromTxn, toTxn := transactions[p.from], transactions[p.to]
+		if fromTxn.FromAccount.ToString() == toTxn.ToAccount.ToString() {
+			result = append(result, createSameAccountTransfer(fromTxn, toTxn))
+		} else {
+			result = append(result, createMergedTransaction(fromTxn, toTxn, "self transfer"))
+		}
+	}
 	return result
 }
 
 func mergeCrossOwnerTransfers(transactions []BeancountTransaction, processed map[int]bool, opts mergeOptions) []BeancountTransaction {
 	result := make([]BeancountTransaction, 0)
-
-	for i, fromTxn := range transactions {
-		if processed[i] || fromTxn.FromAccount.Type != "Assets" {
-			continue
-		}
-
-		for j, toTxn := range transactions {
-			if processed[j] || j == i {
-				continue
-			}
-
-			if !unitsMatch(fromTxn, toTxn) || fromTxn.Amount != toTxn.Amount {
-				continue
-			}
-
-			if toTxn.ToAccount.Type != "Assets" {
-				continue
-			}
-
-			if fromTxn.FromAccount.Owner == toTxn.ToAccount.Owner {
-				continue
-			}
-
-			if !datesWithinRange(fromTxn.Date, toTxn.Date, opts.maxDaysApart) {
-				continue
-			}
-
-			payer := fromTxn.FromAccount.Owner
-			payee := toTxn.ToAccount.Owner
-			desc := "transfer " + payer + " -> " + payee
-			mergedTxn := createMergedTransaction(fromTxn, toTxn, desc)
-			result = append(result, mergedTxn)
-			processed[i] = true
-			processed[j] = true
-			break
-		}
+	pairs := pairTransfers(transactions, processed, opts.maxDaysApart, func(from, to BeancountTransaction) bool {
+		return to.ToAccount.Type == "Assets" && from.FromAccount.Owner != to.ToAccount.Owner
+	})
+	for _, p := range pairs {
+		fromTxn, toTxn := transactions[p.from], transactions[p.to]
+		desc := "transfer " + fromTxn.FromAccount.Owner + " -> " + toTxn.ToAccount.Owner
+		result = append(result, createMergedTransaction(fromTxn, toTxn, desc))
 	}
-
 	return result
 }
 
