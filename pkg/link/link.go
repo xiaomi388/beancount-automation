@@ -63,7 +63,14 @@ func Link(ownerName string, instName string, instType types.InstitutionType) err
 func getAccessToken(clientID string, secret string, env string, product *plaid.Products) (string, error) {
 	ctx := context.Background()
 	c := plaidclient.New(clientID, secret, env)
-	linkToken, err := createLinkToken(ctx, c, product, nil)
+	var linkToken string
+	var err error
+	if product != nil && *product == plaid.PRODUCTS_TRANSACTIONS {
+		// Ask for the maximum history so a re-linked Item backfills any gap.
+		linkToken, err = createTransactionsLinkToken(ctx, clientID, secret, env, maxTransactionsDaysRequested)
+	} else {
+		linkToken, err = createLinkToken(ctx, c, product, nil)
+	}
 	if err != nil {
 		return "", fmt.Errorf("failed to create link token: %w", err)
 	}
@@ -81,14 +88,24 @@ func getAccessToken(clientID string, secret string, env string, product *plaid.P
 	return accessToken, nil
 }
 
+// linkTransactionInstitution links a new Plaid Item. If an entry with the same
+// name exists but its access token was cleared (the old Item was removed), the
+// new token is attached to that entry so its historical accounts are kept.
 func linkTransactionInstitution(owner types.Owner, instName string, config types.Config) (types.Owner, error) {
-	if _, ok := owner.TransactionInstitution(instName); ok {
+	existing, ok := owner.TransactionInstitution(instName)
+	if ok && existing.InstitutionBase.AccessToken != "" {
 		return types.Owner{}, fmt.Errorf("transaction institution %s:%s already existed", owner.Name, instName)
 	}
 
 	accessToken, err := getAccessTokenFn(config.ClientID, config.Secret, config.Environment, instTypeToPlaidProduct(types.InstitutionTypeTransaction))
 	if err != nil {
 		return types.Owner{}, fmt.Errorf("failed to get access token: %w", err)
+	}
+
+	if ok {
+		existing.InstitutionBase.AccessToken = accessToken
+		existing.InstitutionBase.Cursor = "" // cursor of the removed Item is invalid for the new one
+		return owner.CreateOrUpdateTransactionInstitution(existing), nil
 	}
 
 	owner.TransactionInstitutions = append(owner.TransactionInstitutions, types.TransactionInstitution{
@@ -102,13 +119,20 @@ func linkTransactionInstitution(owner types.Owner, instName string, config types
 }
 
 func linkInvestmentInstitution(owner types.Owner, instName string, config types.Config) (types.Owner, error) {
-	if _, ok := owner.InvestmentInstitution(instName); ok {
+	existing, ok := owner.InvestmentInstitution(instName)
+	if ok && existing.InstitutionBase.AccessToken != "" {
 		return types.Owner{}, fmt.Errorf("investment institution %s:%s already existed", owner.Name, instName)
 	}
 
 	accessToken, err := getAccessTokenFn(config.ClientID, config.Secret, config.Environment, instTypeToPlaidProduct(types.InstitutionTypeInvestment))
 	if err != nil {
 		return types.Owner{}, fmt.Errorf("failed to get access token: %w", err)
+	}
+
+	if ok {
+		existing.InstitutionBase.AccessToken = accessToken
+		existing.InstitutionBase.Cursor = ""
+		return owner.CreateOrUpdateInvestmentInstitution(existing), nil
 	}
 
 	owner.InvestmentInstitutions = append(owner.InvestmentInstitutions, types.InvestmentInstitution{
