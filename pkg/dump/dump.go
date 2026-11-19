@@ -101,7 +101,7 @@ func sanitizeCategories(parts ...string) []string {
 
 func txnToChangeAccount(account types.TransactionAccount, txn plaid.Transaction) Account {
 	typ := "Expenses"
-	if txn.GetAmount() < 0 {
+	if txn.GetAmount() < 0 && !isCardRefundOrCredit(account, txn) {
 		typ = "Income"
 	}
 
@@ -119,6 +119,24 @@ func txnToChangeAccount(account types.TransactionAccount, txn plaid.Transaction)
 		Country:  account.AccoutBase.Balances.GetIsoCurrencyCode(),
 		Category: categories,
 	}
+}
+
+// isCardRefundOrCredit reports whether money coming back to a credit card is
+// a merchant refund or a statement credit (not a card payment or transfer).
+// Those reduce spending in their category instead of counting as income.
+func isCardRefundOrCredit(account types.TransactionAccount, txn plaid.Transaction) bool {
+	if account.AccoutBase.GetType() != plaid.ACCOUNTTYPE_CREDIT || txn.GetAmount() >= 0 {
+		return false
+	}
+	cats := txn.GetCategory()
+	if len(cats) == 0 {
+		return true
+	}
+	switch cats[0] {
+	case "Payment", "Transfer", "Interest":
+		return false
+	}
+	return true
 }
 
 func leftDateBeforeRightDate(left string, right string) bool {

@@ -74,6 +74,10 @@ type SetMutations struct {
 type AccountMutation struct {
 	Category []string `yaml:"category"`
 	Name     string   `yaml:"name"`
+	// Type switches an Income/Expenses account to the other side, e.g. to book
+	// a card statement credit against the expense it reimburses. Asset and
+	// liability accounts are never changed.
+	Type string `yaml:"type"`
 }
 
 type Owner struct {

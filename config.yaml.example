@@ -26,6 +26,11 @@ postprocess:
         set:
           to_account:
             category: ["Example", "Category"]
+          # to_account / from_account also accept `type: Income|Expenses` to
+          # move the category account to the other side (asset and liability
+          # accounts are never changed). Example: book a cashback as income.
+          # from_account:
+          #   type: Income
 
 # Employer stock plan (RSU) accounts, detected by Plaid subtype "stock plan".
 # Shares are written as a commodity held at cost; the cost is read from this
