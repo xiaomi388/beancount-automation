@@ -17,6 +17,14 @@ type Config struct {
 	Environment string            `yaml:"environment"`
 	Postprocess PostprocessConfig `yaml:"postprocess"`
 	Storage     StorageConfig     `yaml:"storage"`
+	StockPlan   StockPlanConfig   `yaml:"stockPlan"`
+}
+
+// StockPlanConfig controls how employer stock plan (RSU) accounts are dumped.
+type StockPlanConfig struct {
+	// PricesFile is a CSV of date,symbol,price[,source] used as the cost basis
+	// (fair market value) of vested shares. Default "./prices.csv".
+	PricesFile string `yaml:"pricesFile"`
 }
 
 type StorageConfig struct {

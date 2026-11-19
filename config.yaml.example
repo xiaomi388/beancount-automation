@@ -31,3 +31,10 @@ postprocess:
           # accounts are never changed). Example: book a cashback as income.
           # from_account:
           #   type: Income
+
+# Employer stock plan (RSU) accounts, detected by Plaid subtype "stock plan".
+# Shares are written as a commodity held at cost; the cost is read from this
+# CSV (date,symbol,price[,source]). Fill it with scripts/fetch_prices.py
+# (closing price estimate) and override rows with your broker's FMV.
+stockPlan:
+  pricesFile: ./prices.csv

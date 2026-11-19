@@ -47,6 +47,10 @@ func Sync() error {
 
 	for _, owner := range owners {
 		for _, inst := range owner.TransactionInstitutions {
+			if inst.InstitutionBase.AccessToken == "" {
+				logrus.Infof("skipping unlinked transaction institution %s:%s", owner.Name, inst.InstitutionBase.Name)
+				continue
+			}
 			accountBases, err := getTransactionAccounts(ctx, cli, inst.InstitutionBase)
 			if err != nil {
 				return fmt.Errorf("failed to get accounts for %s:%s: %w", owner.Name, inst.InstitutionBase.Name, err)
@@ -60,6 +64,10 @@ func Sync() error {
 		}
 
 		for _, inst := range owner.InvestmentInstitutions {
+			if inst.InstitutionBase.AccessToken == "" {
+				logrus.Infof("skipping unlinked investment institution %s:%s", owner.Name, inst.InstitutionBase.Name)
+				continue
+			}
 			if inst, err = syncInvestmentHoldings(ctx, cli, inst); err != nil {
 				return fmt.Errorf("failed to sync holdings: %w", err)
 			}
