@@ -96,6 +96,14 @@ func fmtUnits(v float32) string {
 	return strconv.FormatFloat(float64(v), 'f', -1, 32)
 }
 
+// unitsValue returns the quantity as written in the ledger. float64(float32)
+// carries binary noise (8.399 -> 8.39900016), which can flip a half-cent
+// rounding and leave the vest posting 0.005 USD out of balance.
+func unitsValue(v float32) float64 {
+	f, _ := strconv.ParseFloat(fmtUnits(v), 64)
+	return f
+}
+
 func fmtPrice(v float64) string {
 	return strconv.FormatFloat(v, 'f', -1, 64)
 }
@@ -168,7 +176,7 @@ func processStockPlanAccount(owner types.Owner, account types.InvestmentAccount,
 				meta["fmv_source"] = sourceOr(p.Source, "prices file")
 				bc.Postings = []string{
 					fmt.Sprintf("%s %s %s {%s %s}", acct, fmtUnits(t.Quantity), sym, fmtPrice(p.Price), ccy),
-					fmt.Sprintf("%s %s %s", income.ToString(), fmtUSD(-float64(t.Quantity)*p.Price), ccy),
+					fmt.Sprintf("%s %s %s", income.ToString(), fmtUSD(-unitsValue(t.Quantity)*p.Price), ccy),
 				}
 			} else {
 				meta["fmv"] = "missing"

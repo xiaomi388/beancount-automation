@@ -217,3 +217,10 @@ func TestInvestmentCategoryIsSanitized(t *testing.T) {
 		t.Fatalf("got %q", got.ToString())
 	}
 }
+
+func TestVestIncomeUsesLedgerUnits(t *testing.T) {
+	// 8.399 * 339.01 = 2847.34499; float32 noise made it round to .35.
+	if got := fmtUSD(-unitsValue(8.399) * 339.01); got != "-2847.34" {
+		t.Fatalf("income = %s, want -2847.34", got)
+	}
+}
